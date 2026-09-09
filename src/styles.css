@@ -1,0 +1,243 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --color-bg: #08090c;
+  --color-bg-elevated: #101218;
+  --color-bg-subtle: #161a22;
+  --color-fg: #e8eaef;
+  --color-muted: #8b919c;
+  --color-subtle: #6a707a;
+  --color-border: #232833;
+  --color-accent: #c5d0dc;
+  --color-accent-fg: #08090c;
+  --color-iris: #6ec8c4;
+  --color-iris-dim: #1e4442;
+  --color-warn: #c4a574;
+  --color-danger: #c47a74;
+  --color-ok: #7aaf8a;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+
+  --shadow-hud: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html,
+  body,
+  #app {
+    min-height: 100%;
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@layer components {
+  .owl-grain {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  .owl-ring {
+    transform-origin: 100px 108px;
+    animation: owl-spin 48s linear infinite;
+  }
+
+  .owl-ring-rev {
+    transform-origin: 100px 108px;
+    animation: owl-spin 72s linear infinite reverse;
+  }
+
+  .owl-breathe {
+    animation: owl-breathe 4.8s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)) infinite;
+  }
+
+  .owl-iris-pulse {
+    animation: owl-iris 2.4s ease-in-out infinite;
+  }
+
+  .owl-roam {
+    animation: owl-roam 28s ease-in-out infinite;
+  }
+
+  .owl-hop {
+    animation: owl-hop 2.8s ease-in-out infinite;
+  }
+
+  .owl-eq {
+    animation: owl-eq 0.9s ease-in-out infinite;
+  }
+
+  .owl-enter {
+    animation: owl-enter 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .owl-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in oklab, var(--color-fg) 18%, transparent) 50%,
+      transparent 100%
+    );
+    background-size: 220% 100%;
+    animation: owl-shimmer 1.6s linear infinite;
+  }
+}
+
+@keyframes owl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes owl-breathe {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(4px);
+  }
+}
+
+@keyframes owl-iris {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes owl-roam {
+  0% {
+    translate: 4vw 0;
+  }
+  25% {
+    translate: 62vw 0;
+  }
+  50% {
+    translate: 78vw 0;
+  }
+  75% {
+    translate: 22vw 0;
+  }
+  100% {
+    translate: 4vw 0;
+  }
+}
+
+@keyframes owl-hop {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0);
+  }
+  80% {
+    transform: translateY(-10px);
+  }
+  88% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes owl-eq {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes owl-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes owl-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes owl-blink {
+  0%,
+  92%,
+  100% {
+    opacity: 0;
+  }
+  96% {
+    opacity: 1;
+  }
+}
+
+.owl-lid {
+  opacity: 0;
+  animation: owl-blink 5.4s ease-in-out infinite;
+}
+
+.owl-lid-right {
+  animation-delay: 0.12s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .owl-ring,
+  .owl-ring-rev,
+  .owl-breathe,
+  .owl-iris-pulse,
+  .owl-roam,
+  .owl-hop,
+  .owl-eq,
+  .owl-enter,
+  .owl-shimmer,
+  .owl-lid,
+  .owl-lid-right {
+    animation: none;
+  }
+}
