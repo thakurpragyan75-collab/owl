@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { OWL_FEATURES, FEATURE_GROUPS } from "@/lib/owl/features";
 import { attachVideo, detachVideo, ensureSenses } from "@/lib/owl/senses";
-import { canEmbed } from "@/lib/owl/sites";
+import { frameSrc, previewShot } from "@/lib/owl/sites";
 import { parseNestPayload, useOwlStore } from "@/lib/owl/store";
 import { Arcade } from "./Arcade";
 import { cn } from "@/lib/utils";
@@ -300,41 +300,43 @@ export function VisionPreview() {
 function BrowsePanel() {
   const url = useOwlStore((s) => s.browseUrl);
   const playing = useOwlStore((s) => s.nowPlaying);
-  const src = playing?.embed || (url && canEmbed(url) ? url : null);
+  const src = playing?.embed || (url ? frameSrc(url) : null);
+  const shot = !src && url ? previewShot(url) : null;
+  const href = playing?.watchUrl || playing?.musicUrl || url;
   if (!url && !playing) {
     return <p className="text-sm text-muted">Nothing open. Say “open instagram” or “play believer”.</p>;
   }
   return (
-    <div className="flex h-full flex-col gap-2">
-      <p className="truncate font-mono text-xs text-subtle">{playing ? playing.musicUrl : url}</p>
+    <div className="flex h-full min-h-[280px] flex-col gap-2">
+      <p className="truncate font-mono text-xs text-subtle">{playing ? playing.title : url}</p>
       {src ? (
         <iframe
           title={playing ? playing.title : "Opened site"}
           src={src}
-          className="min-h-0 flex-1 w-full rounded-md border border-border bg-bg"
-          allow="autoplay; encrypted-media"
-          referrerPolicy="no-referrer-when-downgrade"
+          className="min-h-[240px] w-full flex-1 rounded-md border border-border bg-bg"
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowFullScreen
+          referrerPolicy="origin"
         />
+      ) : shot ? (
+        <a href={href ?? url ?? "#"} target="_blank" rel="noreferrer" className="block min-h-[240px] flex-1 overflow-hidden rounded-md border border-border">
+          <img src={shot} alt="" className="h-full w-full object-cover object-top" />
+        </a>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col items-start justify-center gap-3 rounded-md border border-border bg-bg-subtle p-5">
+        <div className="flex min-h-[240px] flex-1 flex-col items-start justify-center gap-3 rounded-md border border-border bg-bg-subtle p-5">
           <p className="font-display text-2xl text-fg">Opened</p>
-          <p className="text-sm text-muted">
-            {url} opened as a link so this roost stays yours. Login walls are not framed in.
-          </p>
-          {url && (
-            <a
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              className="min-h-11 rounded-md bg-accent px-4 text-sm font-medium leading-[2.75rem] text-accent-fg"
-            >
-              Open again
-            </a>
-          )}
+          <p className="text-sm text-muted">{url}</p>
         </div>
       )}
-      {playing && (
-        <p className="text-xs text-muted">YouTube Music search is also open so the track can play immediately.</p>
+      {href && (
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-4 text-sm font-medium text-accent-fg"
+        >
+          {playing ? "Open on YouTube" : "Open site"}
+        </a>
       )}
     </div>
   );
@@ -439,10 +441,12 @@ function MemoryPanel() {
   const [editNote, setEditNote] = useState<{ index: number; text: string } | null>(null);
   const [pname, setPname] = useState("");
   const [prel, setPrel] = useState("friend");
+  const [pphone, setPphone] = useState("");
   const [editPerson, setEditPerson] = useState<string | null>(null);
   const [epName, setEpName] = useState("");
   const [epRel, setEpRel] = useState("");
   const [epNotes, setEpNotes] = useState("");
+  const [epPhone, setEpPhone] = useState("");
   const [importNote, setImportNote] = useState("");
 
   useEffect(() => {
@@ -601,10 +605,12 @@ function MemoryPanel() {
             name: pname.trim(),
             relation: prel.trim() || "friend",
             notes: "",
+            phone: pphone.trim() || undefined,
             lastSeen: "rostered in this nest",
           });
           setPname("");
           setPrel("friend");
+          setPphone("");
         }}
       >
         <input
@@ -618,6 +624,13 @@ function MemoryPanel() {
           onChange={(e) => setPrel(e.target.value)}
           placeholder="relation"
           className="min-h-11 w-32 rounded-md border border-border bg-bg px-3 text-sm text-fg outline-none placeholder:text-subtle"
+        />
+        <input
+          value={pphone}
+          onChange={(e) => setPphone(e.target.value)}
+          placeholder="WhatsApp number"
+          inputMode="tel"
+          className="min-h-11 w-40 rounded-md border border-border bg-bg px-3 text-sm text-fg outline-none placeholder:text-subtle"
         />
         <button type="submit" className="min-h-11 rounded-md bg-bg-subtle px-4 text-sm text-fg">
           Ledger
@@ -637,6 +650,7 @@ function MemoryPanel() {
                     name: epName.trim(),
                     relation: epRel.trim() || "friend",
                     notes: epNotes.trim(),
+                    phone: epPhone.trim() || undefined,
                   });
                   setEditPerson(null);
                 }}
@@ -650,6 +664,13 @@ function MemoryPanel() {
                   value={epRel}
                   onChange={(e) => setEpRel(e.target.value)}
                   className="min-h-11 rounded-md border border-border bg-bg px-3 text-sm text-fg outline-none"
+                />
+                <input
+                  value={epPhone}
+                  onChange={(e) => setEpPhone(e.target.value)}
+                  placeholder="WhatsApp number"
+                  inputMode="tel"
+                  className="min-h-11 rounded-md border border-border bg-bg px-3 text-sm text-fg outline-none placeholder:text-subtle"
                 />
                 <input
                   value={epNotes}
@@ -676,6 +697,7 @@ function MemoryPanel() {
                   <p className="text-sm text-fg">{p.name}</p>
                   <p className="font-mono text-xs text-muted">
                     {p.relation}
+                    {p.phone ? ` · ${p.phone}` : ""}
                     {p.notes ? ` · ${p.notes}` : ""}
                   </p>
                 </div>
@@ -688,6 +710,7 @@ function MemoryPanel() {
                     setEpName(p.name);
                     setEpRel(p.relation);
                     setEpNotes(p.notes);
+                    setEpPhone(p.phone ?? "");
                   }}
                 >
                   <Pencil className="size-3.5" />
@@ -832,16 +855,31 @@ function SitePanel({ onSite }: { onSite: (prompt: string) => void }) {
 
 function CallPanel() {
   const target = useOwlStore((s) => s.callTarget);
+  const wire = useOwlStore((s) => s.whatsapp);
   const setCall = useOwlStore((s) => s.setCall);
+  const setWhatsapp = useOwlStore((s) => s.setWhatsapp);
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-      <p className="font-mono text-xs tracking-[0.2em] text-subtle uppercase">Phantom line</p>
+      <p className="font-mono text-xs tracking-[0.2em] text-subtle uppercase">{wire ? "WhatsApp" : "Phantom line"}</p>
       <p className="font-display text-4xl text-fg">{target ?? "—"}</p>
-      <p className="text-sm text-muted">Staged in this roost.</p>
+      {wire?.text && <p className="text-sm text-muted">“{wire.text}”</p>}
+      {wire?.href && (
+        <a
+          href={wire.href}
+          target="owl-out"
+          rel="noreferrer"
+          className="min-h-11 rounded-md bg-accent px-6 text-sm font-medium leading-[2.75rem] text-accent-fg"
+        >
+          Open WhatsApp
+        </a>
+      )}
       <button
         type="button"
         className="min-h-11 rounded-full bg-danger px-8 text-sm font-medium text-fg"
-        onClick={() => setCall(null)}
+        onClick={() => {
+          setCall(null);
+          setWhatsapp(null);
+        }}
       >
         End
       </button>

@@ -212,6 +212,9 @@ export function parseCommand(raw: string): OwlAction | null {
     return { type: "share" };
   }
 
+  const wa = parseWhatsApp(raw);
+  if (wa) return wa;
+
   for (const [phrases, game] of GAMES) {
     if (matchAny(text, phrases)) return { type: "game", name: game };
   }
@@ -288,6 +291,55 @@ export function parseCommand(raw: string): OwlAction | null {
   return null;
 }
 
+function parseWhatsApp(raw: string): OwlAction | null {
+  const original = raw.trim();
+  const text = norm(original);
+  if (!/whatsapp|\bwa\b/.test(text) && !/(number is|add contact)/.test(text)) return null;
+
+  const remember = original.match(
+    /^(?:remember\s+|save\s+)?(.+?)(?:'s)?\s+(?:whatsapp\s+)?(?:phone\s+)?number is\s+(\+?[\d\s\-()]{8,22})\s*$/i,
+  );
+  if (remember?.[1] && remember[2]) {
+    const name = remember[1].replace(/^(remember|save)\s+/i, "").trim();
+    if (name && name.length < 40) return { type: "save_contact", name, phone: remember[2] };
+  }
+  const addc = original.match(/^(?:add|save)\s+contact\s+(.+?)\s+(\+?[\d\s\-()]{8,22})\s*$/i);
+  if (addc?.[1] && addc[2]) return { type: "save_contact", name: addc[1].trim(), phone: addc[2] };
+
+  if (!/whatsapp|\bwa\b/.test(text)) return null;
+
+  const sendAs = original.match(
+    /(?:open\s+)?whatsapp(?:\s+and)?\s+send\s+(.+?)\s+(?:a\s+)?(?:text|message)\s+(?:as|saying|:)\s+(.+)/i,
+  );
+  if (sendAs?.[1] && sendAs[2]) {
+    return { type: "whatsapp", kind: "send", target: sendAs[1].trim(), text: sendAs[2].trim() };
+  }
+  const sendSaying = original.match(/(?:open\s+)?whatsapp(?:\s+and)?\s+send\s+(.+?)\s+(?:as|saying|:)\s+(.+)/i);
+  if (sendSaying?.[1] && sendSaying[2]) {
+    return { type: "whatsapp", kind: "send", target: sendSaying[1].trim(), text: sendSaying[2].trim() };
+  }
+  const sendTo = original.match(
+    /(?:open\s+whatsapp\s+and\s+)?send\s+(.+?)\s+to\s+(.+?)(?:\s+on\s+whatsapp)?\s*$/i,
+  );
+  if (sendTo?.[1] && sendTo[2] && /whatsapp/.test(text)) {
+    return { type: "whatsapp", kind: "send", target: sendTo[2].trim(), text: sendTo[1].trim() };
+  }
+  const textOn = original.match(
+    /(?:text|message)\s+(.+?)\s+on\s+whatsapp(?:\s+(?:as|saying|:)\s*(.+))?$/i,
+  );
+  if (textOn?.[1]) {
+    return { type: "whatsapp", kind: "send", target: textOn[1].trim(), text: (textOn[2] || "Hi").trim() };
+  }
+  const waCall = original.match(/^(?:whatsapp\s+)?call\s+(.+?)(?:\s+on\s+whatsapp)?\s*$/i);
+  if (waCall?.[1] && /whatsapp/.test(text)) {
+    return { type: "whatsapp", kind: "call", target: waCall[1].trim() };
+  }
+  if (/^(?:open|launch|go to|visit)?\s*(?:whatsapp|wa)\s*$/.test(text) || text === "open whatsapp") {
+    return { type: "whatsapp", kind: "open", target: "" };
+  }
+  return null;
+}
+
 export function cinematicLine(action: OwlAction, boss: string): string {
   switch (action.type) {
     case "play_music":
@@ -320,6 +372,12 @@ export function cinematicLine(action: OwlAction, boss: string): string {
       return "Sharing the still.";
     case "call":
       return `Calling ${action.target}.`;
+    case "whatsapp":
+      if (action.kind === "open") return "Opening WhatsApp.";
+      if (action.kind === "call") return `Opening WhatsApp to call ${action.target}.`;
+      return `Opening WhatsApp to ${action.target}${action.text ? ` with “${action.text}”` : ""}.`;
+    case "save_contact":
+      return `Saved ${action.name}'s number.`;
     case "theme":
       return "HUD molted.";
     case "set_name":

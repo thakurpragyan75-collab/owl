@@ -16,7 +16,15 @@ export type HudSkin = "night" | "frost" | "ember";
 
 export type StudioImage = { id: string; url: string; prompt: string; at: number };
 
-export type NowPlaying = { title: string; query: string; embed: string; musicUrl: string };
+export type NowPlaying = { title: string; query: string; embed: string; musicUrl: string; watchUrl?: string };
+
+export type WhatsAppWire = {
+  kind: "send" | "call" | "open";
+  name: string;
+  phone?: string;
+  text?: string;
+  href: string;
+};
 
 type OwlState = {
   phase: "boot" | "awake" | "sleep";
@@ -44,6 +52,7 @@ type OwlState = {
   callTarget: string | null;
   browseUrl: string | null;
   nowPlaying: NowPlaying | null;
+  whatsapp: WhatsAppWire | null;
   permissions: { mic: boolean; camera: boolean };
   earError: string | null;
 
@@ -81,6 +90,7 @@ type OwlState = {
   addDevice: (d: Device) => void;
   setBrowse: (url: string | null) => void;
   setNowPlaying: (n: NowPlaying | null) => void;
+  setWhatsapp: (w: WhatsAppWire | null) => void;
   receiveImage: (deviceId: string, url: string) => void;
   markBluetooth: (deviceId: string) => void;
   setEarError: (e: string | null) => void;
@@ -122,6 +132,7 @@ export function parseNestPayload(raw: unknown): OwlMemory | null {
           name: String(p.name).trim(),
           relation: typeof p.relation === "string" && p.relation.trim() ? p.relation.trim() : "friend",
           notes: typeof p.notes === "string" ? p.notes : "",
+          phone: typeof p.phone === "string" && p.phone.trim() ? p.phone.trim() : undefined,
           lastSeen: typeof p.lastSeen === "string" ? p.lastSeen : undefined,
         }))
     : [];
@@ -170,6 +181,7 @@ export const useOwlStore = create<OwlState>()(
       callTarget: null,
       browseUrl: null,
       nowPlaying: null,
+      whatsapp: null,
       permissions: { mic: false, camera: false },
       earError: null,
       memory: emptyMemory(),
@@ -251,6 +263,7 @@ export const useOwlStore = create<OwlState>()(
       addDevice: (d) => set((s) => ({ devices: [...s.devices, d] })),
       setBrowse: (browseUrl) => set({ browseUrl, panel: browseUrl ? "browse" : get().panel === "browse" ? null : get().panel }),
       setNowPlaying: (nowPlaying) => set({ nowPlaying }),
+      setWhatsapp: (whatsapp) => set({ whatsapp }),
       receiveImage: (deviceId, url) =>
         set((s) => ({
           devices: s.devices.map((d) => (d.id === deviceId ? { ...d, lastImage: url, lastPing: nowIso() } : d)),

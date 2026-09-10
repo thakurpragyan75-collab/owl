@@ -16,11 +16,12 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { owlChat, owlClipPoll, owlClipStart, owlHear, owlImagine, owlSee, owlSpeak } from "@/lib/owl/ai";
+import { owlChat, owlClipPoll, owlClipStart, owlFindTrack, owlHear, owlImagine, owlSee, owlSpeak } from "@/lib/owl/ai";
 import { cinematicLine, parseCommand, stripWakeWord, looksLikeMath } from "@/lib/owl/commands";
 import { playTrack, stopMusic, TRACKS } from "@/lib/owl/music";
 import { attachVideo, ensureSenses, getSensesStream } from "@/lib/owl/senses";
-import { youtubeMusicSearch, youtubeSearchEmbed } from "@/lib/owl/sites";
+import { youtubeMusicSearch } from "@/lib/owl/sites";
+import { findPerson, launchHref, waHref } from "@/lib/owl/whatsapp";
 import { useOwlStore, type HudSkin } from "@/lib/owl/store";
 import type { MindMode, ModuleId, OwlAction } from "@/lib/owl/types";
 import { cn } from "@/lib/utils";
@@ -133,6 +134,8 @@ export function OwlApp() {
   const setLastCode = useOwlStore((s) => s.setLastCode);
   const setLastSite = useOwlStore((s) => s.setLastSite);
   const setCall = useOwlStore((s) => s.setCall);
+  const setWhatsapp = useOwlStore((s) => s.setWhatsapp);
+  const whatsapp = useOwlStore((s) => s.whatsapp);
   const setPermission = useOwlStore((s) => s.setPermission);
   const addNote = useOwlStore((s) => s.addNote);
   const setBrowse = useOwlStore((s) => s.setBrowse);
@@ -222,6 +225,39 @@ export function OwlApp() {
     [setSpeaking, voiceOn],
   );
 
+  const putOn = useCallback(
+    async (query: string, scope: "all" | string = "all") => {
+      stopMusic();
+      setThinking(true);
+      setStatus("Putting it on.");
+      try {
+        const res = await owlFindTrack({ data: { query } });
+        if (res.ok) {
+          setNowPlaying({
+            title: res.title,
+            query,
+            embed: res.embed,
+            musicUrl: res.musicUrl,
+            watchUrl: res.watchUrl,
+          });
+          setPlaying(true, res.title, scope);
+          setBrowse(res.embed);
+          setStatus(`Playing ${res.title}.`);
+          return;
+        }
+        const musicUrl = youtubeMusicSearch(query);
+        const fallback = `https://www.bing.com/videos/search?q=${encodeURIComponent(query + " official audio")}`;
+        setNowPlaying({ title: query, query, embed: fallback, musicUrl });
+        setPlaying(true, query, scope);
+        setBrowse(fallback);
+        setStatus(`Playing ${query}.`);
+      } finally {
+        setThinking(false);
+      }
+    },
+    [setBrowse, setNowPlaying, setPlaying, setStatus, setThinking],
+  );
+
   const runAction = useCallback(
     async (action: OwlAction) => {
       const boss = useOwlStore.getState().memory.bossName;
@@ -235,24 +271,13 @@ export function OwlApp() {
             await playTrack(roost.id);
             setPlaying(true, roost.title, action.scope);
           } else {
-            stopMusic();
-            const musicUrl = youtubeMusicSearch(title);
-            const embed = youtubeSearchEmbed(title);
-            setNowPlaying({ title, query: title, embed, musicUrl });
-            setPlaying(true, title, action.scope);
-            setBrowse(musicUrl);
+            await putOn(title, action.scope);
           }
           break;
         }
-        case "play_song": {
-          stopMusic();
-          const musicUrl = youtubeMusicSearch(action.query);
-          const embed = youtubeSearchEmbed(action.query);
-          setNowPlaying({ title: action.query, query: action.query, embed, musicUrl });
-          setPlaying(true, action.query, "all");
-          setBrowse(musicUrl);
+        case "play_song":
+          await putOn(action.query, "all");
           break;
-        }
         case "stop_music":
           stopMusic();
           setPlaying(false);
@@ -282,10 +307,48 @@ export function OwlApp() {
         case "open_url":
           setNowPlaying(null);
           setBrowse(action.url);
+          launchHref(action.url);
           break;
         case "call":
           setCall(action.target.replace(/\b\w/g, (c) => c.toUpperCase()));
           break;
+        case "whatsapp": {
+          const people = useOwlStore.getState().memory.people;
+          const person = action.target ? findPerson(people, action.target) : undefined;
+          const phone = person?.phone;
+          const href = waHref({
+            phone,
+            text: action.kind === "send" ? action.text : undefined,
+          });
+          setWhatsapp({
+            kind: action.kind,
+            name: person?.name || action.target || "WhatsApp",
+            phone,
+            text: action.text,
+            href,
+          });
+          setCall(person?.name || action.target || "WhatsApp");
+          setPanel("call");
+          launchHref(href);
+          break;
+        }
+        case "save_contact": {
+          const people = useOwlStore.getState().memory.people;
+          const existing = findPerson(people, action.name);
+          if (existing) {
+            useOwlStore.getState().updatePerson(existing.id, { phone: action.phone });
+          } else {
+            useOwlStore.getState().addPerson({
+              id: crypto.randomUUID(),
+              name: action.name.replace(/\b\w/g, (c) => c.toUpperCase()),
+              relation: "friend",
+              notes: "",
+              phone: action.phone,
+              lastSeen: "rostered in this nest",
+            });
+          }
+          break;
+        }
         case "theme":
           if (action.name === "quiet") setQuiet(true);
           else if (action.name === "focus") setFocus(!useOwlStore.getState().focusMode);
@@ -334,6 +397,7 @@ export function OwlApp() {
       awaken,
       pushLog,
       pushMessage,
+      putOn,
       setBrowse,
       setCall,
       setFocus,
@@ -345,6 +409,7 @@ export function OwlApp() {
       setPlaying,
       setQuiet,
       setStatus,
+      setWhatsapp,
       sleep,
       voiceReply,
     ],
@@ -1095,12 +1160,33 @@ export function OwlApp() {
       {callTarget && (
         <div className="absolute inset-0 z-40 grid place-items-center bg-bg/80 p-6">
           <div className="w-full max-w-sm rounded-xl border border-border bg-bg-elevated p-8 text-center shadow-[var(--shadow-hud)]">
-            <p className="font-mono text-xs tracking-[0.2em] text-subtle uppercase">Phantom line</p>
+            <p className="font-mono text-xs tracking-[0.2em] text-subtle uppercase">
+              {whatsapp ? "WhatsApp" : "Phantom line"}
+            </p>
             <p className="mt-3 font-display text-4xl">{callTarget}</p>
+            {whatsapp?.text && <p className="mt-3 text-sm text-muted">“{whatsapp.text}”</p>}
+            {whatsapp && !whatsapp.phone && whatsapp.kind !== "open" && (
+              <p className="mt-3 text-sm text-muted">
+                No number in the nest. Say “{callTarget}’s number is …” then send again.
+              </p>
+            )}
+            {whatsapp?.href && (
+              <a
+                href={whatsapp.href}
+                target="owl-out"
+                rel="noreferrer"
+                className="mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-6 text-sm font-medium text-accent-fg"
+              >
+                Open WhatsApp
+              </a>
+            )}
             <button
               type="button"
-              className="mt-8 min-h-11 rounded-full bg-danger px-8 text-sm font-medium"
-              onClick={() => setCall(null)}
+              className="mt-4 min-h-11 rounded-full bg-danger px-8 text-sm font-medium"
+              onClick={() => {
+                setCall(null);
+                setWhatsapp(null);
+              }}
             >
               End
             </button>

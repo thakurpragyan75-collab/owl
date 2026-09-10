@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { MindMode } from "./types";
+import { extractVideoId, youtubeEmbed, youtubeMusicSearch, youtubeWatch } from "./sites";
 
 type ChatTurn = { role: "system" | "user" | "assistant"; content: string };
 
@@ -399,4 +400,52 @@ export const owlClipPoll = createServerFn({ method: "POST" })
     };
     const url = body.url ?? body.video_url ?? body.data?.url;
     return { ok: true as const, status: body.status ?? "unknown", url };
+  });
+
+export const owlFindTrack = createServerFn({ method: "POST" })
+  .validator((input: { query: string }) => input)
+  .handler(async ({ data }) => {
+    const q = data.query.slice(0, 140).trim();
+    if (!q) return { ok: false as const, error: "No track." };
+    const direct = extractVideoId(q);
+    if (direct) {
+      return {
+        ok: true as const,
+        videoId: direct,
+        title: q,
+        embed: youtubeEmbed(direct),
+        watchUrl: youtubeWatch(direct),
+        musicUrl: youtubeMusicSearch(q),
+      };
+    }
+    const tryQuery = async (term: string) => {
+      const res = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(term)}`, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          "Accept-Language": "en-US,en;q=0.9",
+          Cookie: "CONSENT=YES+; SOCS=CAI",
+        },
+      });
+      if (!res.ok) return null;
+      const html = await res.text();
+      const ids = [...html.matchAll(/"videoId":"([A-Za-z0-9_-]{11})"/g)].map((m) => m[1]);
+      const id = ids.find((v, i) => ids.indexOf(v) === i);
+      if (!id) return null;
+      let title = term;
+      const around = html.split(`"videoId":"${id}"`)[0]?.slice(-1800) ?? "";
+      const named = around.match(/"title":\{"runs":\[\{"text":"([^"]{2,120})"/);
+      if (named?.[1]) title = named[1].replace(/\\u0026/g, "&").replace(/\\"/g, '"');
+      return { id, title };
+    };
+    const hit = (await tryQuery(`${q} official audio`)) || (await tryQuery(q));
+    if (!hit) return { ok: false as const, error: "Could not find that track." };
+    return {
+      ok: true as const,
+      videoId: hit.id,
+      title: hit.title,
+      embed: youtubeEmbed(hit.id),
+      watchUrl: youtubeWatch(hit.id),
+      musicUrl: youtubeMusicSearch(q),
+    };
   });

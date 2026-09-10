@@ -17,7 +17,7 @@ export const OWL_FEATURES: OwlFeature[] = [
   { id: "chorus-unlock", name: "Song Instant", blurb: "Say a title and OWL opens it on YouTube Music with an in-nest player.", kind: "live", invoke: "play song believer", group: "Mesh" },
   { id: "chorus-play", name: "Chorus Playback", blurb: "Plays your favorite song across every paired device in the mesh.", kind: "theater", invoke: "play my favorite song in all three of the devices", group: "Mesh" },
   { id: "favorite-res", name: "Favorite Resonance", blurb: "A composed night score that belongs to this roost, not a streaming link.", kind: "live", invoke: "play my favorite song", group: "Mesh" },
-  { id: "phantom-call", name: "Phantom Call", blurb: "Places a staged call overlay to anyone in memory or a name you speak.", kind: "theater", invoke: "call Alex", group: "Mesh" },
+  { id: "phantom-call", name: "WhatsApp Wire", blurb: "Open WhatsApp, call, or send a contact a prefilled text: “open whatsapp and send Rahul text as hi”.", kind: "live", invoke: "open whatsapp and send Rahul text as hi", group: "Mesh" },
   { id: "screen-of-screens", name: "Screen of Screens", blurb: "Live status of pairing, playback, and last ping for every device.", kind: "live", invoke: "open mesh", group: "Mesh" },
   { id: "signal-roost", name: "Signal Roost", blurb: "Devices you name stay in the mesh across visits via local nest memory.", kind: "live", invoke: "open mesh", group: "Mesh" },
   { id: "map-whisper", name: "Map Whisper", blurb: "A navigation perch for a destination you name — route talk, not GPS hijack.", kind: "mind", invoke: "navigate me home", group: "Mesh" },

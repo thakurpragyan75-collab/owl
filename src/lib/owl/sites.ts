@@ -107,12 +107,20 @@ export function youtubeMusicSearch(query: string) {
   return `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
 }
 
-export function youtubeSearchEmbed(query: string) {
-  return `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1`;
+export function youtubeEmbed(id: string) {
+  return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
 }
 
-export function youtubeWatchSearch(query: string) {
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+export function youtubeWatch(id: string) {
+  return `https://www.youtube.com/watch?v=${id}`;
+}
+
+export function extractVideoId(raw: string): string | null {
+  const t = raw.trim();
+  const m =
+    t.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/) ||
+    t.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+  return m?.[1] ?? null;
 }
 
 export const BLOCK_EMBED = [
@@ -140,9 +148,50 @@ export function canEmbed(url: string) {
     if (host === "youtube.com" || host === "youtube-nocookie.com") {
       return parsed.pathname.startsWith("/embed");
     }
+    if (host === "google.com" && parsed.searchParams.get("igu") === "1") return true;
     if (host === "en.wikipedia.org" || host === "wikipedia.org") return true;
     return !BLOCK_EMBED.some((h) => h.replace(/^www\./, "") === host || host.endsWith(`.${h.replace(/^www\./, "")}`));
   } catch {
     return false;
   }
+}
+
+/** URL that actually loads inside the roost iframe. */
+export function frameSrc(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtube.com" || host === "youtube-nocookie.com") {
+      if (u.pathname.startsWith("/embed")) {
+        u.hostname = "www.youtube-nocookie.com";
+        if (!u.searchParams.has("autoplay")) u.searchParams.set("autoplay", "1");
+        u.searchParams.set("playsinline", "1");
+        return u.toString();
+      }
+      const id = u.searchParams.get("v") || extractVideoId(url);
+      if (id) return youtubeEmbed(id);
+      const q = u.searchParams.get("search_query") || u.searchParams.get("q") || "youtube";
+      return `https://www.bing.com/videos/search?q=${encodeURIComponent(q)}`;
+    }
+    if (host === "youtu.be") {
+      const id = u.pathname.replace(/^\//, "").slice(0, 11);
+      if (id.length === 11) return youtubeEmbed(id);
+    }
+    if (host === "music.youtube.com") {
+      const q = u.searchParams.get("q") || "music";
+      return `https://www.bing.com/videos/search?q=${encodeURIComponent(q + " official audio")}`;
+    }
+    if (host === "google.com") {
+      const q = u.searchParams.get("q") || "search";
+      return `https://www.bing.com/search?q=${encodeURIComponent(q)}`;
+    }
+    if (canEmbed(url)) return url;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function previewShot(url: string) {
+  return `https://image.thum.io/get/width/1200/noanimate/${url}`;
 }
