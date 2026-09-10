@@ -58,6 +58,7 @@ export type Person = {
   name: string;
   relation: string;
   notes: string;
+  phone?: string;
   lastSeen?: string;
 };
 
@@ -94,6 +95,8 @@ export type OwlAction =
   | { type: "math"; prompt: string }
   | { type: "share"; target?: string }
   | { type: "call"; target: string }
+  | { type: "whatsapp"; kind: "send" | "call" | "open"; target: string; text?: string }
+  | { type: "save_contact"; name: string; phone: string }
   | { type: "analyze"; text: string }
   | { type: "theme"; name: string }
   | { type: "clone" }

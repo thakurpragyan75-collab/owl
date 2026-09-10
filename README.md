@@ -15,8 +15,9 @@ OWL is a Jarvis-style roost in the browser. Speak or type. It reasons in a short
 - **Studio** — stills and clips from a prompt
 - **Mesh** — pair devices, share a still over the system sheet or Bluetooth
 - **Arcade** — snake, pong, perch
-- **Open** — “open instagram”, “open yt”, any site by name
-- **Music** — “play song believer” lands on YouTube Music
+- **Open** — “open instagram”, “open yt”, any site by name. OWL launches it.
+- **Music** — “play song believer” finds the track and plays it in the roost
+- **WhatsApp** — “open whatsapp and send Rahul text as hi”. Save a number first: “Rahul’s number is 98…”
 
 Searches and site names are not kept on the home screen. Chat is session-only. Nest is what persists.
 
@@ -26,6 +27,9 @@ Searches and site names are not kept on the home screen. Chat is session-only. N
 hey owl
 play song believer
 open instagram
+open whatsapp and send Rahul text as hi
+Rahul’s number is 9876543210
+call Rahul on whatsapp
 who is Elon Musk
 solve 17^7 - 3
 news
@@ -44,14 +48,14 @@ Open **Nest** from the rail. Change anything:
 - favorite song
 - voice: precise / partner / tease
 - notes (add, edit, delete)
-- people (add, edit, delete)
+- people (add, edit, delete, WhatsApp number)
 - export / import `owl-nest.json`
 
-You can also speak it: “call me Boss”, “I live in Delhi”, “my favorite song is Believer”.
+You can also speak it: “call me Boss”, “I live in Delhi”, “my favorite song is Believer”, “Rahul’s number is 98…”.
 
 ## Honest limits
 
-OWL lives in the browser. It cannot unlock a real phone, drive WhatsApp, or take over a Mac. Mesh pairing and Bluetooth share use what the browser allows (Web Share / Web Bluetooth). The rest is a roost you can actually run.
+OWL lives in the browser. It cannot unlock a real phone or take over a Mac. WhatsApp is opened with the official click-to-chat link (`wa.me` / WhatsApp Web) — the chat and message are filled in; WhatsApp itself still needs the last Send tap. Mesh pairing and Bluetooth share use what the browser allows (Web Share / Web Bluetooth).
 
 ## Privacy
 
