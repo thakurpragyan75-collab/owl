@@ -110,8 +110,6 @@ export function OwlApp() {
   const musicPlaying = useOwlStore((s) => s.musicPlaying);
   const trackTitle = useOwlStore((s) => s.trackTitle);
   const memory = useOwlStore((s) => s.memory);
-  const callTarget = useOwlStore((s) => s.callTarget);
-
   const awaken = useOwlStore((s) => s.awaken);
   const sleep = useOwlStore((s) => s.sleep);
   const setListening = useOwlStore((s) => s.setListening);
@@ -135,7 +133,6 @@ export function OwlApp() {
   const setLastSite = useOwlStore((s) => s.setLastSite);
   const setCall = useOwlStore((s) => s.setCall);
   const setWhatsapp = useOwlStore((s) => s.setWhatsapp);
-  const whatsapp = useOwlStore((s) => s.whatsapp);
   const setPermission = useOwlStore((s) => s.setPermission);
   const addNote = useOwlStore((s) => s.addNote);
   const setBrowse = useOwlStore((s) => s.setBrowse);
@@ -307,7 +304,11 @@ export function OwlApp() {
         case "open_url":
           setNowPlaying(null);
           setBrowse(action.url);
-          launchHref(action.url);
+          try {
+            launchHref(action.url);
+          } catch {
+            /* roost stays */
+          }
           break;
         case "call":
           setCall(action.target.replace(/\b\w/g, (c) => c.toUpperCase()));
@@ -329,7 +330,6 @@ export function OwlApp() {
           });
           setCall(person?.name || action.target || "WhatsApp");
           setPanel("call");
-          launchHref(href);
           break;
         }
         case "save_contact": {
@@ -618,7 +618,12 @@ export function OwlApp() {
       if (/[a-z]{4,}/i.test(collapsed)) addTypo(collapsed);
 
       if (action && action.type !== "chat") {
-        const line = await runAction(action);
+        let line = "";
+        try {
+          line = (await runAction(action)) ?? "";
+        } catch {
+          setStatus("That command slipped. Try again.");
+        }
         if (action.type === "generate_image") {
           await imagine(action.prompt);
           return;
@@ -1156,43 +1161,6 @@ export function OwlApp() {
           <Send className="size-4" />
         </button>
       </form>
-
-      {callTarget && (
-        <div className="absolute inset-0 z-40 grid place-items-center bg-bg/80 p-6">
-          <div className="w-full max-w-sm rounded-xl border border-border bg-bg-elevated p-8 text-center shadow-[var(--shadow-hud)]">
-            <p className="font-mono text-xs tracking-[0.2em] text-subtle uppercase">
-              {whatsapp ? "WhatsApp" : "Phantom line"}
-            </p>
-            <p className="mt-3 font-display text-4xl">{callTarget}</p>
-            {whatsapp?.text && <p className="mt-3 text-sm text-muted">“{whatsapp.text}”</p>}
-            {whatsapp && !whatsapp.phone && whatsapp.kind !== "open" && (
-              <p className="mt-3 text-sm text-muted">
-                No number in the nest. Say “{callTarget}’s number is …” then send again.
-              </p>
-            )}
-            {whatsapp?.href && (
-              <a
-                href={whatsapp.href}
-                target="owl-out"
-                rel="noreferrer"
-                className="mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-6 text-sm font-medium text-accent-fg"
-              >
-                Open WhatsApp
-              </a>
-            )}
-            <button
-              type="button"
-              className="mt-4 min-h-11 rounded-full bg-danger px-8 text-sm font-medium"
-              onClick={() => {
-                setCall(null);
-                setWhatsapp(null);
-              }}
-            >
-              End
-            </button>
-          </div>
-        </div>
-      )}
 
       {clipUrl && (
         <div className="absolute right-4 bottom-28 z-20 w-64 overflow-hidden rounded-lg border border-border bg-bg-elevated">

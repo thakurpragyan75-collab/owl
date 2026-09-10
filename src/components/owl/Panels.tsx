@@ -303,9 +303,20 @@ function BrowsePanel() {
   const src = playing?.embed || (url ? frameSrc(url) : null);
   const shot = !src && url ? previewShot(url) : null;
   const href = playing?.watchUrl || playing?.musicUrl || url;
+  const [shotBroke, setShotBroke] = useState(false);
+  useEffect(() => {
+    setShotBroke(false);
+  }, [url, playing?.embed]);
   if (!url && !playing) {
     return <p className="text-sm text-muted">Nothing open. Say “open instagram” or “play believer”.</p>;
   }
+  const label = playing ? playing.title : (() => {
+    try {
+      return url ? new URL(url).hostname.replace(/^www\./, "") : "site";
+    } catch {
+      return url ?? "site";
+    }
+  })();
   return (
     <div className="flex h-full min-h-[280px] flex-col gap-2">
       <p className="truncate font-mono text-xs text-subtle">{playing ? playing.title : url}</p>
@@ -318,24 +329,24 @@ function BrowsePanel() {
           allowFullScreen
           referrerPolicy="origin"
         />
-      ) : shot ? (
-        <a href={href ?? url ?? "#"} target="_blank" rel="noreferrer" className="block min-h-[240px] flex-1 overflow-hidden rounded-md border border-border">
-          <img src={shot} alt="" className="h-full w-full object-cover object-top" />
+      ) : shot && !shotBroke ? (
+        <a href={href ?? url ?? "#"} target="_blank" rel="noopener noreferrer" className="block min-h-[240px] flex-1 overflow-hidden rounded-md border border-border">
+          <img src={shot} alt="" className="h-full w-full object-cover object-top" onError={() => setShotBroke(true)} />
         </a>
       ) : (
         <div className="flex min-h-[240px] flex-1 flex-col items-start justify-center gap-3 rounded-md border border-border bg-bg-subtle p-5">
-          <p className="font-display text-2xl text-fg">Opened</p>
-          <p className="text-sm text-muted">{url}</p>
+          <p className="font-display text-2xl text-fg capitalize">{label}</p>
+          <p className="text-sm text-muted">This site will not sit inside the roost. Open it beside OWL.</p>
         </div>
       )}
       {href && (
         <a
           href={href}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           className="inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-4 text-sm font-medium text-accent-fg"
         >
-          {playing ? "Open on YouTube" : "Open site"}
+          {playing ? "Open on YouTube" : `Open ${label}`}
         </a>
       )}
     </div>
@@ -866,8 +877,8 @@ function CallPanel() {
       {wire?.href && (
         <a
           href={wire.href}
-          target="owl-out"
-          rel="noreferrer"
+          target="_blank"
+          rel="noopener noreferrer"
           className="min-h-11 rounded-md bg-accent px-6 text-sm font-medium leading-[2.75rem] text-accent-fg"
         >
           Open WhatsApp

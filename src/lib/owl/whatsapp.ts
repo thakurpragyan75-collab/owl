@@ -26,6 +26,8 @@ export function waHref(opts: { phone?: string; text?: string }): string {
 
 export function launchHref(url: string): boolean {
   try {
+    if (typeof window === "undefined") return false;
+    if (window.self !== window.top) return false;
     const w = window.open(url, "_blank", "noopener,noreferrer");
     if (!w || w.closed) return false;
     try {

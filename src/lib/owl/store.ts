@@ -277,7 +277,7 @@ export const useOwlStore = create<OwlState>()(
     }),
     {
       name: "owl-roost-v2",
-      version: 3,
+      version: 4,
       migrate: (persisted) => {
         const p = (persisted ?? {}) as Record<string, unknown>;
         const hud = p.hud === "frost" || p.hud === "ember" || p.hud === "night" ? p.hud : "night";
@@ -290,6 +290,15 @@ export const useOwlStore = create<OwlState>()(
           clones: typeof p.clones === "number" ? Math.min(3, Math.max(1, p.clones)) : 1,
           trackTitle: typeof p.trackTitle === "string" && p.trackTitle.trim() ? p.trackTitle : "Night Watch",
         };
+      },
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          try {
+            localStorage.removeItem("owl-roost-v2");
+          } catch {
+            /* ignore */
+          }
+        }
       },
       partialize: (s) => ({
         voiceOn: s.voiceOn,
