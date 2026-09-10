@@ -33,7 +33,7 @@ call Rahul on whatsapp
 who is Elon Musk
 solve 17^7 - 3
 news
-call me Pragyan
+call me John
 my favorite song is Night Watch
 remember I ship at dusk
 open nest
