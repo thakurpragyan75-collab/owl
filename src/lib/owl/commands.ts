@@ -180,6 +180,16 @@ export function parseCommand(raw: string): OwlAction | null {
     return { type: "set_name", name: nameCall[1].replace(/\b\w/g, (c) => c.toUpperCase()) };
   }
 
+  const imgEarly = original.match(
+    /(?:generate|create|make|draw|imagine|forge)\s+(?:an?\s+)?(?:image|picture|photo|art|still)\s+(?:of\s+|for\s+|:\s*)?(.+)/i,
+  );
+  if (imgEarly?.[1]) return { type: "generate_image", prompt: imgEarly[1].trim() };
+
+  const vidEarly = original.match(
+    /(?:generate|create|make|weave)\s+(?:a\s+)?(?:video|clip)\s+(?:of\s+|for\s+|:\s*)?(.+)/i,
+  );
+  if (vidEarly?.[1]) return { type: "generate_video", prompt: vidEarly[1].trim() };
+
   const songCall = text.match(/^(?:my )?(?:favou?rite|fav) song is\s+(.+)$/);
   if (songCall?.[1]) {
     const title = songCall[1].trim().replace(/\s+/g, " ");
@@ -231,11 +241,13 @@ export function parseCommand(raw: string): OwlAction | null {
   }
 
   const img = text.match(
-    /(?:generate|create|make|draw|imagine)\s+(?:an?\s+)?(?:image|picture|photo|art)\s+(?:of\s+)?(.+)/,
+    /(?:generate|create|make|draw|imagine|forge)\s+(?:an?\s+)?(?:image|picture|photo|art|still)\s+(?:of\s+|for\s+|:\s*)?(.+)/,
   );
   if (img?.[1]) return { type: "generate_image", prompt: img[1] };
 
-  const vid = text.match(/(?:generate|create|make)\s+(?:a\s+)?(?:video|clip)\s+(?:of\s+)?(.+)/);
+  const vid = text.match(
+    /(?:generate|create|make|weave)\s+(?:a\s+)?(?:video|clip)\s+(?:of\s+|for\s+|:\s*)?(.+)/,
+  );
   if (vid?.[1]) return { type: "generate_video", prompt: vid[1] };
 
   const siteBuild = text.match(

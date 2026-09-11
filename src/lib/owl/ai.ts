@@ -10,6 +10,50 @@ function key() {
   return process.env.XAI_API_KEY;
 }
 
+async function ingestMedia(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; OWL/1.0)" },
+    });
+    if (!res.ok) return null;
+    const mime = res.headers.get("content-type")?.split(";")[0] || "application/octet-stream";
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (!buf.length || buf.length > 12_000_000) return null;
+    return `data:${mime};base64,${buf.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
+async function xaiJson(path: string, init: RequestInit) {
+  const apiKey = key();
+  if (!apiKey) return { ok: false as const, status: 0, body: null as unknown, error: "offline" };
+  const res = await fetch(`https://api.x.ai${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...(init.headers || {}),
+    },
+  });
+  const text = await res.text();
+  let body: unknown = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = { raw: text.slice(0, 240) };
+  }
+  if (!res.ok) {
+    const msg =
+      (body as { error?: { message?: string }; message?: string })?.error?.message ||
+      (body as { message?: string })?.message ||
+      text.slice(0, 180) ||
+      `HTTP ${res.status}`;
+    return { ok: false as const, status: res.status, body, error: msg };
+  }
+  return { ok: true as const, status: res.status, body };
+}
+
 function todayStamp() {
   return new Intl.DateTimeFormat("en-GB", {
     weekday: "long",
@@ -302,24 +346,28 @@ export const owlImagine = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const apiKey = key();
     if (!apiKey) return { ok: false as const, error: "Forge is offline." };
-    const res = await fetch("https://api.x.ai/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "grok-imagine-image",
-        prompt: data.prompt.slice(0, 1200),
-        n: 1,
-        resolution: "1k",
-      }),
-    });
-    if (!res.ok) return { ok: false as const, error: `Forge error ${res.status}` };
-    const body = (await res.json()) as { data?: { url?: string }[] };
-    const url = body.data?.[0]?.url;
-    if (!url) return { ok: false as const, error: "No still returned." };
-    return { ok: true as const, url };
+    const prompt = data.prompt.slice(0, 1200);
+    const models = ["grok-imagine-image-2.0", "grok-imagine-image", "grok-imagine-image-quality"];
+    let last = "Forge missed.";
+    for (const model of models) {
+      const hit = await xaiJson("/v1/images/generations", {
+        method: "POST",
+        body: JSON.stringify({ model, prompt, n: 1 }),
+      });
+      if (!hit.ok) {
+        last = hit.error;
+        continue;
+      }
+      const body = hit.body as { data?: { url?: string }[]; url?: string };
+      const remote = body.data?.[0]?.url ?? body.url;
+      if (!remote) {
+        last = "No still returned.";
+        continue;
+      }
+      const url = (await ingestMedia(remote)) || remote;
+      return { ok: true as const, url };
+    }
+    return { ok: false as const, error: last };
   });
 
 export const owlSee = createServerFn({ method: "POST" })
@@ -360,27 +408,35 @@ export const owlSee = createServerFn({ method: "POST" })
   });
 
 export const owlClipStart = createServerFn({ method: "POST" })
-  .validator((input: { prompt: string }) => input)
+  .validator((input: { prompt: string; imageUrl?: string }) => input)
   .handler(async ({ data }) => {
     const apiKey = key();
     if (!apiKey) return { ok: false as const, error: "Clip weaver is offline." };
-    const res = await fetch("https://api.x.ai/v1/videos/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "grok-imagine-video",
-        prompt: data.prompt.slice(0, 800),
-        duration: 6,
-      }),
-    });
-    if (!res.ok) return { ok: false as const, error: `Clip error ${res.status}` };
-    const body = (await res.json()) as { request_id?: string; id?: string };
-    const id = body.request_id ?? body.id;
-    if (!id) return { ok: false as const, error: "No clip id returned." };
-    return { ok: true as const, requestId: id };
+    const prompt = data.prompt.slice(0, 800);
+    const models = ["grok-imagine-video-1.5", "grok-imagine-video"];
+    let last = "Clip missed.";
+    for (const model of models) {
+      const payload: Record<string, unknown> = { model, prompt, duration: 6 };
+      if (data.imageUrl && !data.imageUrl.startsWith("data:")) {
+        payload.image = { url: data.imageUrl, type: "image_url" };
+      }
+      const hit = await xaiJson("/v1/videos/generations", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      if (!hit.ok) {
+        last = hit.error;
+        continue;
+      }
+      const body = hit.body as { request_id?: string; id?: string };
+      const id = body.request_id ?? body.id;
+      if (!id) {
+        last = "No clip id returned.";
+        continue;
+      }
+      return { ok: true as const, requestId: id };
+    }
+    return { ok: false as const, error: last };
   });
 
 export const owlClipPoll = createServerFn({ method: "POST" })
@@ -388,18 +444,27 @@ export const owlClipPoll = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const apiKey = key();
     if (!apiKey) return { ok: false as const, error: "Clip weaver is offline." };
-    const res = await fetch(`https://api.x.ai/v1/videos/${data.requestId}`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (!res.ok) return { ok: false as const, error: `Clip poll ${res.status}` };
-    const body = (await res.json()) as {
+    const hit = await xaiJson(`/v1/videos/${data.requestId}`, { method: "GET" });
+    if (!hit.ok) return { ok: false as const, error: hit.error };
+    const body = hit.body as {
       status?: string;
+      progress?: number;
       url?: string;
       video_url?: string;
+      video?: { url?: string };
       data?: { url?: string };
     };
-    const url = body.url ?? body.video_url ?? body.data?.url;
-    return { ok: true as const, status: body.status ?? "unknown", url };
+    const remote = body.video?.url ?? body.url ?? body.video_url ?? body.data?.url;
+    let url = remote;
+    if (remote && (body.status === "done" || body.status === "completed" || body.status === "succeeded")) {
+      url = (await ingestMedia(remote)) || remote;
+    }
+    return {
+      ok: true as const,
+      status: body.status ?? "unknown",
+      progress: typeof body.progress === "number" ? body.progress : undefined,
+      url,
+    };
   });
 
 export const owlFindTrack = createServerFn({ method: "POST" })

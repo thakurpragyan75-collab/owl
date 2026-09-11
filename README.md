@@ -12,7 +12,7 @@ OWL is a Jarvis-style roost in the browser. Speak or type. It reasons in a short
 - **Ear** — always-on mic after you grant it; hold the mic for a clip if dictation is missing
 - **Gaze** — live camera, observe a frame
 - **Nest** — your name, city, song, notes, and people. Edit, delete, import, export. Stays on this device
-- **Studio** — stills and clips from a prompt
+- **Studio** — stills and clips from a prompt, in the roost
 - **Mesh** — pair devices, share a still over the system sheet or Bluetooth
 - **Arcade** — snake, pong, perch
 - **Open** — “open instagram”, “open yt”, any site by name. OWL launches it.
@@ -33,7 +33,7 @@ call Rahul on whatsapp
 who is Elon Musk
 solve 17^7 - 3
 news
-call me John
+call me Pragyan
 my favorite song is Night Watch
 remember I ship at dusk
 open nest

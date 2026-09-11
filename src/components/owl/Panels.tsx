@@ -193,6 +193,7 @@ function StudioPanel({
   onClip: (prompt: string) => void;
 }) {
   const images = useOwlStore((s) => s.studioImages);
+  const lastClip = useOwlStore((s) => s.lastClip);
   const [prompt, setPrompt] = useState("a geometric owl of moonlight and teal glass, night HUD");
   const [busy, setBusy] = useState<"still" | "clip" | null>(null);
 
@@ -231,10 +232,13 @@ function StudioPanel({
           {busy === "clip" ? "Weaving…" : "Weave clip"}
         </button>
       </div>
+      {lastClip && (
+        <video src={lastClip} controls className="aspect-video w-full rounded-md border border-border bg-bg" />
+      )}
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto">
         {images.map((img) => (
           <figure key={img.id} className="overflow-hidden rounded-md border border-border">
-            <img src={img.url} alt={img.prompt} className="aspect-square w-full object-cover" />
+            <img src={img.url} alt={img.prompt} referrerPolicy="no-referrer" className="aspect-square w-full object-cover" />
             <figcaption className="truncate px-2 py-1 font-mono text-xs text-subtle">{img.prompt}</figcaption>
           </figure>
         ))}

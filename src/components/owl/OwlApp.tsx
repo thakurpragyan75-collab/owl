@@ -419,6 +419,7 @@ export function OwlApp() {
     async (prompt: string) => {
       setThinking(true);
       setStatus("Forging the still.");
+      setPanel("studio");
       pushLog("Imagine Forge", "info");
       try {
         const res = await owlImagine({ data: { prompt } });
@@ -435,38 +436,53 @@ export function OwlApp() {
         setThinking(false);
       }
     },
-    [addImage, pushLog, pushMessage, setStatus, setThinking, voiceReply],
+    [addImage, pushLog, pushMessage, setPanel, setStatus, setThinking, voiceReply],
   );
 
   const weaveClip = useCallback(
     async (prompt: string) => {
       setThinking(true);
       setStatus("Weaving a clip.");
+      setPanel("studio");
       try {
-        const start = await owlClipStart({ data: { prompt } });
+        const lastStill = useOwlStore.getState().studioImages[0]?.url;
+        const start = await owlClipStart({
+          data: { prompt, imageUrl: lastStill && !lastStill.startsWith("data:") ? lastStill : undefined },
+        });
         if (!start.ok) {
-          pushMessage({ role: "owl", text: start.error + " Falling back to a still." });
+          pushMessage({ role: "owl", text: start.error + " Forging a still instead." });
           await imagine(prompt);
           return;
         }
-        for (let i = 0; i < 24; i++) {
-          await new Promise((r) => setTimeout(r, 3000));
+        for (let i = 0; i < 36; i++) {
+          await new Promise((r) => setTimeout(r, 4000));
           const poll = await owlClipPoll({ data: { requestId: start.requestId } });
-          if (!poll.ok) break;
+          if (!poll.ok) {
+            pushMessage({ role: "owl", text: poll.error });
+            setStatus(poll.error);
+            return;
+          }
+          if (typeof poll.progress === "number") setStatus(`Weaving a clip · ${poll.progress}%.`);
+          if (poll.status === "failed" || poll.status === "expired") {
+            pushMessage({ role: "owl", text: "The clip did not land. I can still forge a still." });
+            setStatus("Clip missed.");
+            return;
+          }
           if (poll.url && (poll.status === "done" || poll.status === "completed" || poll.status === "succeeded")) {
             setClipUrl(poll.url);
+            useOwlStore.getState().setLastClip(poll.url);
             pushMessage({ role: "owl", text: "Clip ready." });
             setStatus("Clip ready.");
             void voiceReply("Clip ready.", true);
             return;
           }
         }
-        pushMessage({ role: "owl", text: "The clip did not land. I can still forge a still." });
+        pushMessage({ role: "owl", text: "The clip is still weaving. Try again in a moment, or forge a still." });
       } finally {
         setThinking(false);
       }
     },
-    [imagine, pushMessage, setStatus, setThinking, voiceReply],
+    [imagine, pushMessage, setPanel, setStatus, setThinking, voiceReply],
   );
 
   const seeFrame = useCallback(async () => {
@@ -951,7 +967,12 @@ export function OwlApp() {
                 )}
                 <p className="whitespace-pre-wrap">{m.text}</p>
                 {m.imageUrl && (
-                  <img src={m.imageUrl} alt="" className="mt-2 max-h-56 rounded-md border border-border object-cover" />
+                  <img
+                    src={m.imageUrl}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="mt-2 max-h-56 rounded-md border border-border object-cover"
+                  />
                 )}
                 {m.code && (
                   <pre className="mt-2 overflow-x-auto rounded-md border border-border bg-bg p-2 font-mono text-xs">
@@ -1162,9 +1183,9 @@ export function OwlApp() {
         </button>
       </form>
 
-      {clipUrl && (
+      {clipUrl && panel !== "studio" && (
         <div className="absolute right-4 bottom-28 z-20 w-64 overflow-hidden rounded-lg border border-border bg-bg-elevated">
-          <video src={clipUrl} controls className="w-full" />
+          <video src={clipUrl} controls className="w-full" data-owl-clip />
           <button type="button" className="w-full py-2 text-xs text-muted" onClick={() => setClipUrl(null)}>
             Dismiss
           </button>
