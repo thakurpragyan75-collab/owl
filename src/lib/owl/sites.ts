@@ -73,6 +73,8 @@ export const MODULE_WORDS = new Set([
   "call",
   "browse",
   "imagine",
+  "relics",
+  "relic",
 ]);
 
 function cleanKey(raw: string) {

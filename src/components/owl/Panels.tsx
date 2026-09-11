@@ -3,7 +3,7 @@ import { OWL_FEATURES, FEATURE_GROUPS } from "@/lib/owl/features";
 import { attachVideo, detachVideo, ensureSenses } from "@/lib/owl/senses";
 import { frameSrc, previewShot } from "@/lib/owl/sites";
 import { parseNestPayload, useOwlStore } from "@/lib/owl/store";
-import { Arcade } from "./Arcade";
+import { RelicsPanel } from "./Relics";
 import { cn } from "@/lib/utils";
 import { Bluetooth, Music2, Smartphone, Laptop, Watch, Tablet, Pencil, Trash2, Download, Upload, Check } from "lucide-react";
 import type { DeviceKind } from "@/lib/owl/types";
@@ -23,6 +23,7 @@ export function PanelBody({
   onCode,
   onSite,
   onShare,
+  onDropFile,
 }: {
   onInvoke: (text: string) => void;
   onImagine: (prompt: string) => void;
@@ -31,10 +32,10 @@ export function PanelBody({
   onCode: (prompt: string) => void;
   onSite: (prompt: string) => void;
   onShare: (deviceId?: string) => void;
+  onDropFile?: (file: File) => void;
 }) {
   const panel = useOwlStore((s) => s.panel);
   if (panel === "mesh") return <MeshPanel onShare={onShare} />;
-  if (panel === "arcade") return <Arcade />;
   if (panel === "studio") return <StudioPanel onImagine={onImagine} onClip={onClip} />;
   if (panel === "vision") return <VisionPanel onSee={onSee} />;
   if (panel === "codex") return <CodexPanel onInvoke={onInvoke} />;
@@ -44,6 +45,7 @@ export function PanelBody({
   if (panel === "site") return <SitePanel onSite={onSite} />;
   if (panel === "call") return <CallPanel />;
   if (panel === "browse") return <BrowsePanel />;
+  if (panel === "relics") return <RelicsPanel onInvoke={onInvoke} onDropFile={onDropFile} />;
   return null;
 }
 
@@ -233,7 +235,14 @@ function StudioPanel({
         </button>
       </div>
       {lastClip && (
-        <video src={lastClip} controls className="aspect-video w-full rounded-md border border-border bg-bg" />
+        <video
+          src={lastClip}
+          controls
+          autoPlay
+          playsInline
+          data-owl-clip
+          className="aspect-video w-full rounded-md border border-border bg-bg"
+        />
       )}
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto">
         {images.map((img) => (

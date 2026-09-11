@@ -146,6 +146,7 @@ const MODULE_PHRASES: Array<[string[], ModuleId]> = [
   [["open memory", "open nest"], "memory"],
   [["open code", "code nest"], "code"],
   [["open site", "site spindle"], "site"],
+  [["open relics", "open relic", "relics", "rare relics"], "relics"],
 ];
 
 const GAMES: Array<[string[], "snake" | "pong" | "perch"]> = [
@@ -220,6 +221,43 @@ export function parseCommand(raw: string): OwlAction | null {
   if (matchAny(text, TEASE)) return { type: "chat", text: raw };
   if (matchAny(text, ["share this", "share image", "send this image", "bluetooth share", "share over bluetooth"])) {
     return { type: "share" };
+  }
+
+  const qr = original.match(/^(?:make |create |generate )?(?:a )?qr(?: code)?(?: for| of|:)?\s+(.+)/i);
+  if (qr?.[1]) return { type: "relic", kind: "qr", payload: qr[1].trim() };
+  if (matchAny(text, ["clipboard", "whats on my clipboard", "read clipboard", "paste nest"])) {
+    return { type: "relic", kind: "clipboard" };
+  }
+  if (matchAny(text, ["sky", "sky ledger", "moon", "moon phase", "sunrise", "sunset", "what phase is the moon"])) {
+    return { type: "relic", kind: "sky" };
+  }
+  if (matchAny(text, ["battery", "power left", "how much charge", "battery veil"])) {
+    return { type: "relic", kind: "battery" };
+  }
+  if (matchAny(text, ["save still", "download still", "snapshot", "polaroid", "save the still"])) {
+    return { type: "relic", kind: "polaroid" };
+  }
+  if (matchAny(text, ["how dark is it", "dim gaze", "is it dark", "how dim"])) {
+    return { type: "relic", kind: "dim" };
+  }
+  if (matchAny(text, ["tilt perch", "tilt the perch", "lean with me", "enable tilt"])) {
+    return { type: "relic", kind: "tilt" };
+  }
+  if (matchAny(text, ["what color is this", "colour talon", "color talon", "sample the color", "sample the colour"])) {
+    return { type: "relic", kind: "color" };
+  }
+  if (matchAny(text, ["roost sigil", "my sigil", "show sigil", "nest mark"])) {
+    return { type: "relic", kind: "sigil" };
+  }
+  if (matchAny(text, ["cover my eye", "cover eye", "cover the camera"])) {
+    return { type: "relic", kind: "cover" };
+  }
+  if (matchAny(text, ["start a timer", "start hourglass", "pomodoro", "perch timer", "start focus hour", "start a focus hour"])) {
+    const mins = original.match(/(\d+)\s*(?:min|minute)/i);
+    return { type: "relic", kind: "focus", payload: mins?.[1] };
+  }
+  if (matchAny(text, ["stop timer", "stop hourglass", "end focus hour"])) {
+    return { type: "relic", kind: "unfocus" };
   }
 
   const wa = parseWhatsApp(raw);
@@ -388,6 +426,19 @@ export function cinematicLine(action: OwlAction, boss: string): string {
       if (action.kind === "open") return "Opening WhatsApp.";
       if (action.kind === "call") return `Opening WhatsApp to call ${action.target}.`;
       return `Opening WhatsApp to ${action.target}${action.text ? ` with “${action.text}”` : ""}.`;
+    case "relic":
+      if (action.kind === "sky") return "Reading the sky.";
+      if (action.kind === "focus") return "Hourglass turned.";
+      if (action.kind === "qr") return "Spinning a mark.";
+      if (action.kind === "battery") return "Feeling the cell.";
+      if (action.kind === "polaroid") return "Pulling a still.";
+      if (action.kind === "dim") return "Tasting the light.";
+      if (action.kind === "clipboard") return "Looking at the clipboard.";
+      if (action.kind === "tilt") return "Leaning with the roost.";
+      if (action.kind === "color") return "Sampling the scene.";
+      if (action.kind === "sigil") return "This roost's mark.";
+      if (action.kind === "cover") return "Cover my eye and I'll go quiet.";
+      return "Relic.";
     case "save_contact":
       return `Saved ${action.name}'s number.`;
     case "theme":

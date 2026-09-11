@@ -18,7 +18,8 @@ export type ModuleId =
   | "code"
   | "site"
   | "call"
-  | "browse";
+  | "browse"
+  | "relics";
 
 export type DeviceKind = "phone" | "tablet" | "laptop" | "watch";
 
@@ -41,6 +42,7 @@ export type ChatMessage = {
   at: number;
   verse?: string;
   imageUrl?: string;
+  videoUrl?: string;
   code?: { language: string; source: string };
   html?: string;
   actions?: OwlAction[];
@@ -97,6 +99,7 @@ export type OwlAction =
   | { type: "call"; target: string }
   | { type: "whatsapp"; kind: "send" | "call" | "open"; target: string; text?: string }
   | { type: "save_contact"; name: string; phone: string }
+  | { type: "relic"; kind: "clipboard" | "sky" | "focus" | "unfocus" | "qr" | "battery" | "polaroid" | "dim" | "tilt" | "color" | "sigil" | "cover"; payload?: string }
   | { type: "analyze"; text: string }
   | { type: "theme"; name: string }
   | { type: "clone" }

@@ -102,14 +102,17 @@ export const OWL_FEATURES: OwlFeature[] = [
 
   { id: "check-in", name: "Watchful Idle", blurb: "After a quiet spell, a small check-in — never an API storm, never on first paint.", kind: "live", invoke: "stay with me", group: "Time" },
   { id: "hours-clock", name: "Clock of Hours", blurb: "Time sits in the HUD in tabular numerals, always.", kind: "live", invoke: "what time is it", group: "Time" },
-  { id: "first-question", name: "First Question", blurb: "On waking, OWL can ask what you are actually doing today.", kind: "live", invoke: "what should I do first", group: "Time" },
-  { id: "notes-hollow", name: "Notes Hollow", blurb: "Scratch notes beside memory, retrieved by 'what did I jot down'.", kind: "live", invoke: "open memory", group: "Time" },
-  { id: "hud-molt", name: "HUD Molt", blurb: "Layout can hide the mesh and keep only face, log, and voice.", kind: "live", invoke: "focus", group: "Time" },
-  { id: "eq-beak", name: "Beak Equalizer", blurb: "Tiny bars under the beak while OWL speaks so the face is doing the talking.", kind: "live", invoke: "speak your next reply", group: "Time" },
-  { id: "scan-rings", name: "Scan Rings", blurb: "Slow HUD rings around the head — orientation, not decoration soup.", kind: "live", invoke: "stay with me", group: "Time" },
-  { id: "catchlight", name: "Catchlight", blurb: "A single specular in each pupil so the eyes read as wet glass, not stickers.", kind: "live", invoke: "look at me", group: "Time" },
-  { id: "asymmetric-lid", name: "Asymmetric Lid", blurb: "Right lid lags the left so blinks feel biological.", kind: "live", invoke: "stay with me", group: "Time" },
-  { id: "roost-export", name: "Roost Export", blurb: "Memory walks out as JSON. Nothing of yours stays only in a stranger's cloud.", kind: "live", invoke: "open memory", group: "Time" },
+
+  { id: "drop-nest", name: "Drop Nest", blurb: "Drop a file or still onto the roost. ChatGPT has no desk.", kind: "live", invoke: "open relics", group: "Relics" },
+  { id: "sky-ledger", name: "Sky Ledger", blurb: "Moon phase sits in the HUD — computed here, not a weather widget.", kind: "live", invoke: "sky", group: "Relics" },
+  { id: "hourglass", name: "Focus Hourglass", blurb: "A 25-minute perch timer. The owl ring drains. A chime when the sand is gone.", kind: "live", invoke: "start hourglass", group: "Relics" },
+  { id: "tilt-perch", name: "Tilt Perch", blurb: "The familiar leans with this device. ChatGPT cannot feel a gyroscope.", kind: "live", invoke: "tilt perch", group: "Relics" },
+  { id: "breath-ring", name: "Breath Ring", blurb: "Speak, and the iris pulses with your voice in the room — not a waveform graphic in a chat.", kind: "live", invoke: "open relics", group: "Relics" },
+  { id: "cover-eye", name: "Cover Eye", blurb: "Cover the camera. OWL goes quiet. A chat box has no eye to cover.", kind: "live", invoke: "cover my eye", group: "Relics" },
+  { id: "roost-sigil", name: "Roost Sigil", blurb: "A unique geometric mark minted from your nest name. This roost, not a generic logo.", kind: "live", invoke: "roost sigil", group: "Relics" },
+  { id: "color-talon", name: "Color Talon", blurb: "The HUD takes the color in front of the camera.", kind: "live", invoke: "what color is this", group: "Relics" },
+  { id: "shake-tease", name: "Shake Tease", blurb: "Shake the device; OWL needles you. No prompt box required.", kind: "live", invoke: "tease me", group: "Relics" },
+  { id: "idle-walk", name: "Idle Walk", blurb: "Go quiet, and a miniature OWL walks the HUD. Tap it.", kind: "live", invoke: "open relics", group: "Relics" },
 ];
 
 export const FEATURE_GROUPS = [
@@ -123,4 +126,5 @@ export const FEATURE_GROUPS = [
   "Kernel",
   "Language",
   "Time",
+  "Relics",
 ] as const;

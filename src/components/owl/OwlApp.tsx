@@ -1,21 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  BookOpen,
-  Camera,
-  Code2,
-  Gamepad2,
-  Globe,
-  ImageIcon,
-  Inbox,
-  Mic,
-  MicOff,
-  Moon,
-  Send,
-  Smartphone,
-  UserRound,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { BookOpen, Camera, Code2, Feather, Gamepad2, Globe, ImageIcon, Inbox, Mic, MicOff, Moon, Send, Smartphone, UserRound, Volume2, VolumeX } from "lucide-react";
 import { owlChat, owlClipPoll, owlClipStart, owlFindTrack, owlHear, owlImagine, owlSee, owlSpeak } from "@/lib/owl/ai";
 import { cinematicLine, parseCommand, stripWakeWord, looksLikeMath } from "@/lib/owl/commands";
 import { playTrack, stopMusic, TRACKS } from "@/lib/owl/music";
@@ -27,9 +11,11 @@ import type { MindMode, ModuleId, OwlAction } from "@/lib/owl/types";
 import { cn } from "@/lib/utils";
 import { Arcade } from "./Arcade";
 import { BootSequence } from "./BootSequence";
+import { batteryPct, chime, downloadHref, enableTilt, moonPhase, readBattery, roostSigil, sampleFrame, skyBrief } from "@/lib/owl/relics";
 import { MiniCompanion } from "./MiniCompanion";
 import { OwlFace } from "./OwlFace";
 import { PanelBody } from "./Panels";
+import { RelicsSigil } from "./Relics";
 
 const MODULES: { id: ModuleId; label: string; icon: typeof BookOpen }[] = [
   { id: "mesh", label: "Mesh", icon: Smartphone },
@@ -40,6 +26,7 @@ const MODULES: { id: ModuleId; label: string; icon: typeof BookOpen }[] = [
   { id: "code", label: "Code", icon: Code2 },
   { id: "site", label: "Site", icon: Globe },
   { id: "codex", label: "Codex", icon: BookOpen },
+  { id: "relics", label: "Relics", icon: Feather },
   { id: "memory", label: "Nest", icon: UserRound },
 ];
 
@@ -145,6 +132,7 @@ export function OwlApp() {
 
   const [draft, setDraft] = useState("");
   const [clock, setClock] = useState("");
+  const [sand, setSand] = useState(0);
   const [clipUrl, setClipUrl] = useState<string | null>(null);
   const recRef = useRef<{ stop: () => void } | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -158,6 +146,16 @@ export function OwlApp() {
   const holdTimer = useRef<number | null>(null);
   const holding = useRef(false);
   const clipRef = useRef<MediaRecorder | null>(null);
+  const lastInputAt = useRef(Date.now());
+  const [idleWalk, setIdleWalk] = useState(false);
+  const focusUntil = useOwlStore((s) => s.focusUntil);
+  const [dragging, setDragging] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [breath, setBreath] = useState(0);
+  const [battery, setBattery] = useState<number | null>(null);
+  const [cell, setCell] = useState<string | null>(null);
+  const weaveGen = useRef(0);
+  const clipPlayer = useRef<HTMLVideoElement | null>(null);
 
   const skin = useMemo(() => {
     if (hud === "frost")
@@ -176,6 +174,18 @@ export function OwlApp() {
     const id = window.setInterval(tick, 10000);
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!focusUntil) {
+      setSand(0);
+      return;
+    }
+    const span = Math.max(60_000, focusUntil - Date.now());
+    const tick = () => setSand(Math.max(0, (focusUntil - Date.now()) / span));
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [focusUntil]);
 
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: "smooth" });
@@ -349,6 +359,89 @@ export function OwlApp() {
           }
           break;
         }
+        case "relic":
+          setPanel("relics");
+          if (action.kind === "sky") {
+            const brief = skyBrief(useOwlStore.getState().memory.city);
+            pushMessage({ role: "owl", text: brief });
+            setStatus(brief);
+          } else if (action.kind === "qr") {
+            useOwlStore.getState().setQrPayload(action.payload || "OWL");
+          } else if (action.kind === "focus") {
+            const mins = Math.min(90, Math.max(1, Number(action.payload) || 25));
+            useOwlStore.getState().setFocusUntil(Date.now() + mins * 60_000);
+            setFocus(true);
+          } else if (action.kind === "unfocus") {
+            useOwlStore.getState().setFocusUntil(null);
+            setFocus(false);
+          } else if (action.kind === "battery") {
+            void readBattery().then((t) => {
+              pushMessage({ role: "owl", text: t });
+              setStatus(t);
+            });
+          } else if (action.kind === "polaroid") {
+            const still = useOwlStore.getState().studioImages[0];
+            const clip = useOwlStore.getState().lastClip;
+            if (still) downloadHref(still.url, "owl-still.jpg");
+            else if (clip) downloadHref(clip, "owl-clip.mp4");
+            else pushMessage({ role: "owl", text: "Forge a still first." });
+          } else if (action.kind === "clipboard") {
+            void navigator.clipboard
+              ?.readText()
+              .then((t) => {
+                if (!t.trim()) {
+                  pushMessage({ role: "owl", text: "Clipboard is empty." });
+                  return;
+                }
+                addNote(t.trim().slice(0, 400));
+                pushMessage({ role: "owl", text: `Nest caught: ${t.trim().slice(0, 180)}` });
+              })
+              .catch(() => pushMessage({ role: "owl", text: "Allow clipboard, then ask again." }));
+          } else if (action.kind === "dim") {
+            void (async () => {
+              await ensureSenses();
+              attachVideo(camRef.current);
+              const video = camRef.current;
+              if (!video || video.readyState < 2) {
+                pushMessage({ role: "owl", text: "Open the ear first so Gaze can taste the light." });
+                return;
+              }
+              const sampled = sampleFrame(video);
+              if (!sampled) return;
+              const line =
+                sampled.luma < 48 ? "It's dim here. Ember HUD." : sampled.luma > 180 ? "Bright roost." : `Light sits at ${Math.round(sampled.luma)}.`;
+              if (sampled.luma < 48) setHud("ember");
+              pushMessage({ role: "owl", text: line });
+              setStatus(line);
+            })();
+          } else if (action.kind === "tilt") {
+            void enableTilt().then((ok) => {
+              pushMessage({
+                role: "owl",
+                text: ok ? "Tilt the device. I lean with the roost." : "This roost has no gyroscope.",
+              });
+            });
+          } else if (action.kind === "color") {
+            void (async () => {
+              await ensureSenses();
+              attachVideo(camRef.current);
+              const sampled = sampleFrame(camRef.current);
+              if (!sampled) {
+                pushMessage({ role: "owl", text: "Open the ear so I can see the color." });
+                return;
+              }
+              setCell(sampled.hex);
+              pushMessage({ role: "owl", text: `The scene sits at ${sampled.hex}. HUD took it.` });
+              setStatus(`Color ${sampled.hex}.`);
+            })();
+          } else if (action.kind === "sigil") {
+            const mem = useOwlStore.getState().memory;
+            const mark = roostSigil(`${mem.bossName}|${mem.city ?? ""}|${mem.favoriteSong}`);
+            pushMessage({ role: "owl", text: `This roost's sigil is minted from ${mem.bossName}. Seven points, hue ${mark.hue}.` });
+          } else if (action.kind === "cover") {
+            pushMessage({ role: "owl", text: "Cover my camera. When it goes dark, I go quiet." });
+          }
+          break;
         case "theme":
           if (action.name === "quiet") setQuiet(true);
           else if (action.name === "focus") setFocus(!useOwlStore.getState().focusMode);
@@ -394,6 +487,7 @@ export function OwlApp() {
     },
     [
       addClone,
+      addNote,
       awaken,
       pushLog,
       pushMessage,
@@ -441,6 +535,7 @@ export function OwlApp() {
 
   const weaveClip = useCallback(
     async (prompt: string) => {
+      const gen = ++weaveGen.current;
       setThinking(true);
       setStatus("Weaving a clip.");
       setPanel("studio");
@@ -449,40 +544,61 @@ export function OwlApp() {
         const start = await owlClipStart({
           data: { prompt, imageUrl: lastStill && !lastStill.startsWith("data:") ? lastStill : undefined },
         });
+        if (gen !== weaveGen.current) return;
         if (!start.ok) {
-          pushMessage({ role: "owl", text: start.error + " Forging a still instead." });
-          await imagine(prompt);
+          pushMessage({
+            role: "owl",
+            text: start.error + " Clip weaver is live — wait a breath and try Weave clip again.",
+          });
+          setStatus(start.error);
           return;
         }
-        for (let i = 0; i < 36; i++) {
-          await new Promise((r) => setTimeout(r, 4000));
+        for (let i = 0; i < 60; i++) {
+          await new Promise((r) => setTimeout(r, i === 0 ? 2500 : 3000));
+          if (gen !== weaveGen.current) return;
           const poll = await owlClipPoll({ data: { requestId: start.requestId } });
+          if (gen !== weaveGen.current) return;
           if (!poll.ok) {
             pushMessage({ role: "owl", text: poll.error });
             setStatus(poll.error);
             return;
           }
-          if (typeof poll.progress === "number") setStatus(`Weaving a clip · ${poll.progress}%.`);
+          const pct = typeof poll.progress === "number" ? poll.progress : Math.min(92, 8 + i * 4);
+          setStatus(`Weaving a clip · ${pct}%.`);
           if (poll.status === "failed" || poll.status === "expired") {
-            pushMessage({ role: "owl", text: "The clip did not land. I can still forge a still." });
+            pushMessage({ role: "owl", text: "The clip did not land. Try a shorter prompt, or forge a still." });
             setStatus("Clip missed.");
             return;
           }
           if (poll.url && (poll.status === "done" || poll.status === "completed" || poll.status === "succeeded")) {
-            setClipUrl(poll.url);
-            useOwlStore.getState().setLastClip(poll.url);
-            pushMessage({ role: "owl", text: "Clip ready." });
+            let play = poll.url;
+            try {
+              const res = await fetch(poll.url);
+              const blob = await res.blob();
+              if (blob.size > 800) play = URL.createObjectURL(blob);
+            } catch {
+              /* keep proxy url */
+            }
+            if (gen !== weaveGen.current) return;
+            setClipUrl(play);
+            useOwlStore.getState().setLastClip(play);
+            pushMessage({ role: "owl", text: "Clip ready.", videoUrl: play });
             setStatus("Clip ready.");
             void voiceReply("Clip ready.", true);
+            window.setTimeout(() => {
+              const el = clipPlayer.current ?? document.querySelector<HTMLVideoElement>("[data-owl-clip]");
+              void el?.play().catch(() => undefined);
+            }, 80);
             return;
           }
         }
-        pushMessage({ role: "owl", text: "The clip is still weaving. Try again in a moment, or forge a still." });
+        pushMessage({ role: "owl", text: "The clip is still weaving. Try Weave clip once more." });
+        setStatus("Still weaving.");
       } finally {
-        setThinking(false);
+        if (gen === weaveGen.current) setThinking(false);
       }
     },
-    [imagine, pushMessage, setPanel, setStatus, setThinking, voiceReply],
+    [pushMessage, setPanel, setStatus, setThinking, voiceReply],
   );
 
   const seeFrame = useCallback(async () => {
@@ -606,6 +722,34 @@ export function OwlApp() {
     [pushLog, pushMessage, receiveImage, setStatus],
   );
 
+  const dropFile = useCallback(
+    async (file: File) => {
+      lastInputAt.current = Date.now();
+      setIdleWalk(false);
+      setPanel("relics");
+      if (file.type.startsWith("image/")) {
+        const url = await new Promise<string>((resolve) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result || ""));
+          r.readAsDataURL(file);
+        });
+        addImage({ id: crypto.randomUUID(), url, prompt: file.name, at: Date.now() });
+        pushMessage({ role: "owl", text: `Dropped still: ${file.name}`, imageUrl: url });
+        setStatus("Nest caught a still.");
+        return;
+      }
+      const text = await file.text().catch(() => "");
+      if (text.trim()) {
+        addNote(text.trim().slice(0, 800));
+        pushMessage({ role: "owl", text: `Dropped into nest: ${file.name}` });
+        setStatus("Nest caught a file.");
+        return;
+      }
+      pushMessage({ role: "owl", text: "I can nest images and text files." });
+    },
+    [addImage, addNote, pushMessage, setPanel, setStatus],
+  );
+
   const submit = useCallback(
     async (raw: string) => {
       const { woke, rest } = stripWakeWord(raw);
@@ -620,6 +764,8 @@ export function OwlApp() {
       }
       const text = (rest || raw).trim();
       if (!text) return;
+      lastInputAt.current = Date.now();
+      setIdleWalk(false);
       const action = parseCommand(text);
       const hideSearch =
         !!action &&
@@ -737,10 +883,120 @@ export function OwlApp() {
   }, [submit]);
 
   useEffect(() => {
+    if (phase !== "awake") return;
+    const id = window.setInterval(() => {
+      if (Date.now() - lastInputAt.current > 45000 && !useOwlStore.getState().thinking) setIdleWalk(true);
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "awake") return;
+    let last = 0;
+    const onShake = (e: DeviceMotionEvent) => {
+      const a = e.accelerationIncludingGravity;
+      if (!a) return;
+      const mag = Math.hypot(a.x ?? 0, a.y ?? 0, a.z ?? 0);
+      if (mag > 28 && Date.now() - last > 4000) {
+        last = Date.now();
+        lastInputAt.current = Date.now();
+        setIdleWalk(false);
+        void submitRef.current("tease me");
+      }
+    };
+    window.addEventListener("devicemotion", onShake);
+    return () => window.removeEventListener("devicemotion", onShake);
+  }, [phase]);
+
+  useEffect(() => {
+    if (!focusUntil) return;
+    const left = focusUntil - Date.now();
+    if (left <= 0) {
+      useOwlStore.getState().setFocusUntil(null);
+      setFocus(false);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      useOwlStore.getState().setFocusUntil(null);
+      setFocus(false);
+      setStatus("Hourglass spent.");
+      chime();
+      pushMessage({ role: "owl", text: "Hourglass spent. The perch is yours again." });
+      void voiceReply("Hourglass spent.", true);
+    }, left);
+    return () => window.clearTimeout(t);
+  }, [focusUntil, pushMessage, setFocus, setStatus, voiceReply]);
+
+  useEffect(() => {
     attachVideo(camRef.current);
     const id = window.setInterval(() => attachVideo(camRef.current), 1800);
     return () => window.clearInterval(id);
   }, [phase, permissions.camera]);
+
+  useEffect(() => {
+    void batteryPct().then(setBattery);
+    const id = window.setInterval(() => void batteryPct().then(setBattery), 60000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const onOrient = (e: DeviceOrientationEvent) => {
+      const x = Math.max(-1, Math.min(1, (e.gamma ?? 0) / 32));
+      const y = Math.max(-1, Math.min(1, ((e.beta ?? 0) - 45) / 40));
+      setTilt({ x, y });
+    };
+    window.addEventListener("deviceorientation", onOrient);
+    return () => window.removeEventListener("deviceorientation", onOrient);
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "awake" || !permissions.mic) return;
+    const stream = getSensesStream();
+    if (!stream) return;
+    let ctx: AudioContext | null = null;
+    let raf = 0;
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      ctx = new AudioCtx();
+      const src = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        setBreath(Math.sqrt(sum / data.length));
+        raf = window.requestAnimationFrame(tick);
+      };
+      raf = window.requestAnimationFrame(tick);
+    } catch {
+      return;
+    }
+    return () => {
+      window.cancelAnimationFrame(raf);
+      void ctx?.close();
+    };
+  }, [phase, permissions.mic, listening]);
+
+  useEffect(() => {
+    if (phase !== "awake" || !permissions.camera) return;
+    let last = 0;
+    const id = window.setInterval(() => {
+      const sampled = sampleFrame(camRef.current);
+      if (!sampled) return;
+      if (sampled.luma < 14 && Date.now() - last > 18000) {
+        last = Date.now();
+        setStatus("Covered. Quiet.");
+        pushMessage({ role: "owl", text: "You covered my eye. I'm still here." });
+      }
+    }, 2200);
+    return () => window.clearInterval(id);
+  }, [phase, permissions.camera, pushMessage, setStatus]);
 
   const startEar = useCallback(async () => {
     earWanted.current = true;
@@ -903,9 +1159,32 @@ export function OwlApp() {
         hud === "frost" && "contrast-125",
         hud === "ember" && "[--color-iris:#c4a574] [--color-accent:#e4d6c5]",
       )}
-      style={{ ["--hud-ring" as string]: skin.ring }}
+      style={{
+        ["--hud-ring" as string]: skin.ring,
+        ...(cell ? { ["--color-iris" as string]: cell } : {}),
+      }}
+      onPointerDown={() => {
+        lastInputAt.current = Date.now();
+        setIdleWalk(false);
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        const f = e.dataTransfer.files[0];
+        if (f) void dropFile(f);
+      }}
     >
       <div className="owl-grain" />
+      {dragging && (
+        <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center border-2 border-dashed border-iris bg-bg/70">
+          <p className="font-display text-3xl text-fg">Drop nest</p>
+        </div>
+      )}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -916,12 +1195,18 @@ export function OwlApp() {
       <header className="relative z-10 flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
           <span className="font-display text-2xl tracking-[-0.03em]">OWL</span>
+          <RelicsSigil seed={`${memory.bossName}|${memory.city ?? ""}|${memory.favoriteSong}`} />
           <span className="hidden font-mono text-xs tracking-[0.18em] text-subtle uppercase sm:inline">
             {hourGreeting()}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-mono text-xs tabular-nums text-muted">{clock}</span>
+          <span className="font-mono text-xs tabular-nums text-muted">
+            {moonPhase().name.split(" ")[0]}
+            {battery !== null ? ` · ${battery}%` : ""}
+            {" · "}
+            {clock}
+          </span>
           <span className="hidden rounded-full border border-border px-2 py-1 font-mono text-[0.65rem] tracking-wider text-subtle uppercase sm:inline">
             {listening ? "ear on" : "ear off"} · {devices.length} paired
           </span>
@@ -974,6 +1259,16 @@ export function OwlApp() {
                     className="mt-2 max-h-56 rounded-md border border-border object-cover"
                   />
                 )}
+                {m.videoUrl && (
+                  <video
+                    src={m.videoUrl}
+                    controls
+                    autoPlay
+                    playsInline
+                    data-owl-clip
+                    className="mt-2 w-full rounded-md border border-border"
+                  />
+                )}
                 {m.code && (
                   <pre className="mt-2 overflow-x-auto rounded-md border border-border bg-bg p-2 font-mono text-xs">
                     {m.code.source}
@@ -991,7 +1286,14 @@ export function OwlApp() {
         </section>
 
         <section className="flex flex-col items-center justify-center px-4 py-2 lg:w-[40%]">
-          <OwlFace mood={listening ? "listen" : thinking ? "think" : speaking ? "speak" : mood} speaking={speaking} />
+          <OwlFace
+            mood={listening ? "listen" : thinking ? "think" : speaking ? "speak" : mood}
+            speaking={speaking}
+            hourglass={focusUntil ? sand : null}
+            breath={breath}
+            tiltX={tilt.x}
+            tiltY={tilt.y}
+          />
           <p className="mt-3 max-w-md text-center font-display text-xl tracking-[-0.02em] text-fg sm:text-2xl">
             {status && !/^online\.?$/i.test(status) ? status : "\u00a0"}
           </p>
@@ -1051,6 +1353,7 @@ export function OwlApp() {
                     onCode={(p) => void submit(`write code ${p}`)}
                     onSite={(p) => void submit(`build a website ${p}`)}
                     onShare={(id) => void shareStill(id)}
+                    onDropFile={(f) => void dropFile(f)}
                   />
                 )}
               </div>
@@ -1079,6 +1382,20 @@ export function OwlApp() {
                     {memory.people.length} {memory.people.length === 1 ? "person" : "people"}
                   </p>
                   <p className="mt-2 text-xs text-iris">Edit nest</p>
+                </button>
+              </div>
+              <div>
+                <h2 className="font-mono text-xs tracking-[0.18em] text-subtle uppercase">Relics</h2>
+                <button
+                  type="button"
+                  onClick={() => setPanel("relics")}
+                  className="mt-2 w-full rounded-lg border border-border bg-bg-elevated/80 px-3 py-3 text-left transition-colors hover:border-accent/40"
+                >
+                  <p className="font-display text-lg text-fg">Ten things a chat box cannot do</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted">
+                    Sky, hourglass, tilt, breath, drop files, shake, sigil, color, cover-eye, idle walk.
+                  </p>
+                  <p className="mt-2 text-xs text-iris">Open relics</p>
                 </button>
               </div>
               {memory.people.length > 0 && (
@@ -1169,7 +1486,7 @@ export function OwlApp() {
           id="owl-input"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="hey owl · play believer · open instagram · who is Elon Musk · news"
+          placeholder="hey owl · weave a clip of a moon perch · open relics · sky"
           className="min-h-11 flex-1 rounded-md border border-border bg-bg-elevated px-3 text-sm text-fg outline-none placeholder:text-subtle focus:ring-1 focus:ring-accent"
           autoComplete="off"
         />
@@ -1184,14 +1501,25 @@ export function OwlApp() {
       </form>
 
       {clipUrl && panel !== "studio" && (
-        <div className="absolute right-4 bottom-28 z-20 w-64 overflow-hidden rounded-lg border border-border bg-bg-elevated">
-          <video src={clipUrl} controls className="w-full" data-owl-clip />
+        <div className="absolute right-3 bottom-28 z-20 w-[min(22rem,calc(100%-1.5rem))] overflow-hidden rounded-lg border border-border bg-bg-elevated">
+          <video
+            ref={clipPlayer}
+            src={clipUrl}
+            controls
+            autoPlay
+            playsInline
+            data-owl-clip
+            className="aspect-video w-full bg-bg"
+          />
           <button type="button" className="w-full py-2 text-xs text-muted" onClick={() => setClipUrl(null)}>
             Dismiss
           </button>
         </div>
       )}
 
+      {idleWalk && phase === "awake" && (
+        <MiniCompanion clones={1} roaming onWake={() => { setIdleWalk(false); lastInputAt.current = Date.now(); }} />
+      )}
       {clones > 1 && phase === "awake" && (
         <div className="pointer-events-none absolute bottom-28 left-3 z-20 w-14 opacity-80">
           <OwlFace mood="tease" speaking={false} size="dock" />

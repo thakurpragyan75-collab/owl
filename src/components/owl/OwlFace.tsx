@@ -6,9 +6,13 @@ type Props = {
   mood: OwlMood;
   speaking: boolean;
   size?: "hero" | "dock";
+  hourglass?: number | null;
+  breath?: number;
+  tiltX?: number;
+  tiltY?: number;
 };
 
-export function OwlFace({ mood, speaking, size = "hero" }: Props) {
+export function OwlFace({ mood, speaking, size = "hero", hourglass, breath = 0, tiltX = 0, tiltY = 0 }: Props) {
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,6 +37,9 @@ export function OwlFace({ mood, speaking, size = "hero" }: Props) {
   const listen = mood === "listen";
   const think = mood === "think";
   const tease = mood === "tease";
+  const sand = typeof hourglass === "number" ? Math.max(0, Math.min(1, hourglass)) : null;
+  const circ = 2 * Math.PI * 96;
+  const pulse = 0.18 + Math.min(0.55, breath * 1.8);
 
   return (
     <div
@@ -42,7 +49,15 @@ export function OwlFace({ mood, speaking, size = "hero" }: Props) {
         size === "hero" ? "w-[min(420px,86vw)]" : "w-16",
         size === "hero" && "owl-breathe",
       )}
-      style={{ ["--px" as string]: "0px", ["--py" as string]: think ? "-3px" : "0px" }}
+      style={{
+        ["--px" as string]: "0px",
+        ["--py" as string]: think ? "-3px" : "0px",
+        transform:
+          size === "hero"
+            ? `perspective(900px) rotateY(${(tiltX * 10).toFixed(2)}deg) rotateX(${(-tiltY * 8).toFixed(2)}deg)`
+            : undefined,
+        transformStyle: "preserve-3d",
+      }}
       aria-hidden="true"
     >
       <svg viewBox="0 0 200 228" className="block h-auto w-full">
@@ -64,7 +79,7 @@ export function OwlFace({ mood, speaking, size = "hero" }: Props) {
 
         {size === "hero" && (
           <>
-            <circle cx="100" cy="108" r="94" fill="url(#owl-glow)" />
+            <circle cx="100" cy="108" r="94" fill="url(#owl-glow)" opacity={0.85 + pulse} />
             <circle
               className="owl-ring"
               cx="100"
@@ -85,6 +100,20 @@ export function OwlFace({ mood, speaking, size = "hero" }: Props) {
               strokeWidth="0.4"
               strokeDasharray="1 14"
             />
+            {sand !== null && (
+              <circle
+                cx="100"
+                cy="108"
+                r="96"
+                fill="none"
+                stroke="var(--color-iris)"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeDasharray={`${(circ * sand).toFixed(1)} ${circ.toFixed(1)}`}
+                transform="rotate(-90 100 108)"
+                opacity="0.85"
+              />
+            )}
           </>
         )}
 
@@ -99,8 +128,8 @@ export function OwlFace({ mood, speaking, size = "hero" }: Props) {
           strokeWidth="1"
         />
 
-        <Eye cx={72} cy={104} mood={mood} tease={tease} lidClass="owl-lid" />
-        <Eye cx={128} cy={104} mood={mood} tease={false} lidClass="owl-lid owl-lid-right" />
+        <Eye cx={72} cy={104} mood={mood} tease={tease} lidClass="owl-lid" breath={breath} />
+        <Eye cx={128} cy={104} mood={mood} tease={false} lidClass="owl-lid owl-lid-right" breath={breath} />
 
         <path
           d="M100 118 L92 132 L100 138 L108 132 Z"
@@ -143,12 +172,12 @@ export function OwlFace({ mood, speaking, size = "hero" }: Props) {
           <circle
             cx="100"
             cy="108"
-            r="78"
+            r={78 + breath * 8}
             fill="none"
             stroke="var(--color-iris)"
             strokeWidth="0.6"
             className="owl-iris-pulse"
-            opacity="0.5"
+            opacity={0.35 + pulse}
           />
         )}
       </svg>
@@ -162,15 +191,17 @@ function Eye({
   mood,
   tease,
   lidClass,
+  breath,
 }: {
   cx: number;
   cy: number;
   mood: OwlMood;
   tease: boolean;
   lidClass: string;
+  breath: number;
 }) {
   const asleep = mood === "sleep";
-  const irisR = mood === "listen" ? 16.5 : 15;
+  const irisR = (mood === "listen" ? 16.5 : 15) + Math.min(2.4, breath * 4);
   const pupilR = mood === "focus" ? 6.2 : 7.4;
 
   return (

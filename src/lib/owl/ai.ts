@@ -13,7 +13,7 @@ function key() {
 async function ingestMedia(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; OWL/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0" },
     });
     if (!res.ok) return null;
     const mime = res.headers.get("content-type")?.split(";")[0] || "application/octet-stream";
@@ -43,7 +43,7 @@ async function xaiJson(path: string, init: RequestInit) {
   } catch {
     body = { raw: text.slice(0, 240) };
   }
-  if (!res.ok) {
+  if (!res.ok && res.status !== 202) {
     const msg =
       (body as { error?: { message?: string }; message?: string })?.error?.message ||
       (body as { message?: string })?.message ||
@@ -416,7 +416,13 @@ export const owlClipStart = createServerFn({ method: "POST" })
     const models = ["grok-imagine-video-1.5", "grok-imagine-video"];
     let last = "Clip missed.";
     for (const model of models) {
-      const payload: Record<string, unknown> = { model, prompt, duration: 6 };
+      const payload: Record<string, unknown> = {
+        model,
+        prompt,
+        duration: 6,
+        aspect_ratio: "16:9",
+        resolution: "720p",
+      };
       if (data.imageUrl && !data.imageUrl.startsWith("data:")) {
         payload.image = { url: data.imageUrl, type: "image_url" };
       }
@@ -445,8 +451,8 @@ export const owlClipPoll = createServerFn({ method: "POST" })
     const apiKey = key();
     if (!apiKey) return { ok: false as const, error: "Clip weaver is offline." };
     const hit = await xaiJson(`/v1/videos/${data.requestId}`, { method: "GET" });
-    if (!hit.ok) return { ok: false as const, error: hit.error };
-    const body = hit.body as {
+    if (!hit.ok && hit.status !== 202) return { ok: false as const, error: hit.error };
+    const body = (hit.body ?? {}) as {
       status?: string;
       progress?: number;
       url?: string;
@@ -455,15 +461,14 @@ export const owlClipPoll = createServerFn({ method: "POST" })
       data?: { url?: string };
     };
     const remote = body.video?.url ?? body.url ?? body.video_url ?? body.data?.url;
-    let url = remote;
-    if (remote && (body.status === "done" || body.status === "completed" || body.status === "succeeded")) {
-      url = (await ingestMedia(remote)) || remote;
-    }
+    const status = body.status ?? (hit.status === 202 ? "pending" : remote ? "done" : "pending");
+    const ready = status === "done" || status === "completed" || status === "succeeded";
+    const play = remote && ready ? `/api/owl-media?u=${encodeURIComponent(remote)}` : undefined;
     return {
       ok: true as const,
-      status: body.status ?? "unknown",
-      progress: typeof body.progress === "number" ? body.progress : undefined,
-      url,
+      status,
+      progress: typeof body.progress === "number" ? body.progress : ready ? 100 : undefined,
+      url: play,
     };
   });
 
