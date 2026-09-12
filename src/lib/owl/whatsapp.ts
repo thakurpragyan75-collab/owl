@@ -24,17 +24,43 @@ export function waHref(opts: { phone?: string; text?: string }): string {
   return mobile ? "https://wa.me/" : "https://web.whatsapp.com/";
 }
 
+function clickAnchor(url: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 export function launchHref(url: string): boolean {
+  if (typeof window === "undefined") return false;
   try {
-    if (typeof window === "undefined") return false;
-    if (window.self !== window.top) return false;
-    const w = window.open(url, "_blank", "noopener,noreferrer");
-    if (!w || w.closed) return false;
-    try {
-      w.opener = null;
-    } catch {
-      /* ignore */
+    const w = window.open(url, "_blank");
+    if (w && !w.closed) {
+      try {
+        w.opener = null;
+      } catch {
+        /* ignore */
+      }
+      return true;
     }
+  } catch {
+    /* blocked */
+  }
+  try {
+    const topWin = window.top;
+    if (topWin && topWin !== window) {
+      const w = topWin.open(url, "_blank");
+      if (w && !w.closed) return true;
+    }
+  } catch {
+    /* cross-origin frame */
+  }
+  try {
+    clickAnchor(url);
     return true;
   } catch {
     return false;
