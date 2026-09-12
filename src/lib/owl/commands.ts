@@ -188,6 +188,13 @@ export function parseCommand(raw: string): OwlAction | null {
     return { type: "set_name", name: nameCall[1].replace(/\b\w/g, (c) => c.toUpperCase()) };
   }
 
+  if (/^(forge still|generate image|make an image|imagine still)$/.test(text)) {
+    return { type: "generate_image", prompt: "a geometric owl of moonlight and teal glass, night HUD" };
+  }
+  if (/^(weave clip|generate video|make a video|make a clip)$/.test(text)) {
+    return { type: "generate_video", prompt: "a geometric owl turning its head, moonlight, teal glass" };
+  }
+
   const imgEarly = original.match(
     /(?:generate|create|make|draw|imagine|forge)\s+(?:an?\s+)?(?:image|picture|photo|art|still)\s+(?:of\s+|for\s+|:\s*)?(.+)/i,
   );

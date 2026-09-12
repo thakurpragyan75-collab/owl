@@ -591,14 +591,7 @@ export function OwlApp() {
             return;
           }
           if (poll.url && (poll.status === "done" || poll.status === "completed" || poll.status === "succeeded")) {
-            let play = poll.url;
-            try {
-              const res = await fetch(poll.url);
-              const blob = await res.blob();
-              if (blob.size > 800) play = URL.createObjectURL(blob);
-            } catch {
-              /* keep proxy url */
-            }
+            const play = poll.url;
             if (gen !== weaveGen.current) return;
             setClipUrl(play);
             useOwlStore.getState().setLastClip(play);
@@ -607,7 +600,10 @@ export function OwlApp() {
             void voiceReply("Clip ready.", true);
             window.setTimeout(() => {
               const el = clipPlayer.current ?? document.querySelector<HTMLVideoElement>("[data-owl-clip]");
-              void el?.play().catch(() => undefined);
+              if (el) {
+                el.src = play;
+                void el.play().catch(() => undefined);
+              }
             }, 80);
             return;
           }

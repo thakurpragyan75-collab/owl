@@ -289,7 +289,7 @@ function StudioPanel({
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto">
         {images.map((img) => (
           <figure key={img.id} className="overflow-hidden rounded-md border border-border">
-            <img src={img.url} alt={img.prompt} referrerPolicy="no-referrer" className="aspect-square w-full object-cover" />
+            <img src={img.url} alt={img.prompt} referrerPolicy="no-referrer" className="aspect-square w-full bg-bg object-contain" />
             <figcaption className="truncate px-2 py-1 font-mono text-xs text-subtle">{img.prompt}</figcaption>
           </figure>
         ))}

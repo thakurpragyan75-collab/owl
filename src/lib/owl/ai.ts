@@ -384,31 +384,25 @@ export const owlImagine = createServerFn({ method: "POST" })
     const apiKey = key();
     if (!apiKey) return { ok: false as const, error: "Forge is offline." };
     const prompt = data.prompt.slice(0, 1200);
-    const models = ["grok-imagine-image", "grok-imagine-image-2.0"];
+    const models = ["grok-imagine-image-2.0", "grok-imagine-image"];
     let last = "Forge missed.";
     for (const model of models) {
       const hit = await xaiJson("/v1/images/generations", {
         method: "POST",
-        body: JSON.stringify({ model, prompt, n: 1, response_format: "b64_json" }),
+        body: JSON.stringify({ model, prompt, n: 1 }),
       });
       if (!hit.ok) {
         last = hit.error;
         if (hit.status === 429 || hit.status === 402) return { ok: false as const, error: last };
         continue;
       }
-      const body = hit.body as {
-        data?: { url?: string; b64_json?: string }[];
-        url?: string;
-      };
-      const b64 = body.data?.[0]?.b64_json;
-      if (b64) return { ok: true as const, url: `data:image/jpeg;base64,${b64}` };
+      const body = hit.body as { data?: { url?: string }[]; url?: string };
       const remote = body.data?.[0]?.url ?? body.url;
       if (!remote) {
         last = "No still returned.";
         continue;
       }
-      const ingested = await ingestMedia(remote);
-      return { ok: true as const, url: ingested || mediaProxy(remote) };
+      return { ok: true as const, url: mediaProxy(remote) };
     }
     return { ok: false as const, error: last };
   });
@@ -428,8 +422,8 @@ export const owlRestyle = createServerFn({ method: "POST" })
     const prompt = data.prompt.slice(0, 1200);
     const image = data.image.slice(0, 2_400_000);
     const attempts: Record<string, unknown>[] = [
-      { model: "grok-imagine-image-2.0", prompt, n: 1, response_format: "b64_json", image: { url: image, type: "image_url" } },
-      { model: "grok-imagine-image-2.0", prompt, n: 1, response_format: "b64_json", images: [image] },
+      { model: "grok-imagine-image-2.0", prompt, n: 1, image: { url: image, type: "image_url" } },
+      { model: "grok-imagine-image-2.0", prompt, n: 1, images: [image] },
     ];
     let last = "Restyle missed.";
     for (const body of attempts) {
@@ -448,8 +442,7 @@ export const owlRestyle = createServerFn({ method: "POST" })
         continue;
       }
       if (remote.startsWith("data:")) return { ok: true as const, url: remote };
-      const ingested = await ingestMedia(remote);
-      return { ok: true as const, url: ingested || mediaProxy(remote) };
+      return { ok: true as const, url: mediaProxy(remote) };
     }
     return { ok: false as const, error: last };
   });
@@ -546,9 +539,9 @@ export const owlClipStart = createServerFn({ method: "POST" })
       const payload: Record<string, unknown> = {
         model,
         prompt,
-        duration: 5,
+        duration: 6,
         aspect_ratio: "16:9",
-        resolution: "480p",
+        resolution: "720p",
       };
       const imageUrl = publicImageUrl(data.imageUrl);
       if (imageUrl) {
