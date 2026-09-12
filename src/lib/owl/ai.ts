@@ -10,6 +10,43 @@ function key() {
   return process.env.XAI_API_KEY;
 }
 
+function quotaLine(status: number, msg: string) {
+  const m = (msg || "").toLowerCase();
+  if (
+    status === 429 ||
+    status === 402 ||
+    /quota|rate limit|resource.?exhausted|usage limit|insufficient|credit|spend limit|too many requests/.test(m)
+  ) {
+    return "Week is spent. Stills and clips wait until SuperGrok resets. Relics still work.";
+  }
+  return msg;
+}
+
+function mediaProxy(url: string) {
+  if (!url || url.startsWith("data:") || url.startsWith("blob:") || url.startsWith("/")) return url;
+  try {
+    const host = new URL(url).hostname;
+    if (host === "x.ai" || host.endsWith(".x.ai")) {
+      return `/api/owl-media?u=${encodeURIComponent(url)}`;
+    }
+  } catch {
+    /* keep */
+  }
+  return url;
+}
+
+function publicImageUrl(url?: string) {
+  if (!url) return undefined;
+  if (url.startsWith("data:") || url.startsWith("blob:") || url.startsWith("/")) return undefined;
+  try {
+    const host = new URL(url).hostname;
+    if (host === "x.ai" || host.endsWith(".x.ai")) return url;
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
 async function ingestMedia(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
@@ -49,7 +86,7 @@ async function xaiJson(path: string, init: RequestInit) {
       (body as { message?: string })?.message ||
       text.slice(0, 180) ||
       `HTTP ${res.status}`;
-    return { ok: false as const, status: res.status, body, error: msg };
+    return { ok: false as const, status: res.status, body, error: quotaLine(res.status, msg) };
   }
   return { ok: true as const, status: res.status, body };
 }
@@ -347,27 +384,117 @@ export const owlImagine = createServerFn({ method: "POST" })
     const apiKey = key();
     if (!apiKey) return { ok: false as const, error: "Forge is offline." };
     const prompt = data.prompt.slice(0, 1200);
-    const models = ["grok-imagine-image-2.0", "grok-imagine-image", "grok-imagine-image-quality"];
+    const models = ["grok-imagine-image", "grok-imagine-image-2.0"];
     let last = "Forge missed.";
     for (const model of models) {
       const hit = await xaiJson("/v1/images/generations", {
         method: "POST",
-        body: JSON.stringify({ model, prompt, n: 1 }),
+        body: JSON.stringify({ model, prompt, n: 1, response_format: "b64_json" }),
       });
       if (!hit.ok) {
         last = hit.error;
+        if (hit.status === 429 || hit.status === 402) return { ok: false as const, error: last };
         continue;
       }
-      const body = hit.body as { data?: { url?: string }[]; url?: string };
+      const body = hit.body as {
+        data?: { url?: string; b64_json?: string }[];
+        url?: string;
+      };
+      const b64 = body.data?.[0]?.b64_json;
+      if (b64) return { ok: true as const, url: `data:image/jpeg;base64,${b64}` };
       const remote = body.data?.[0]?.url ?? body.url;
       if (!remote) {
         last = "No still returned.";
         continue;
       }
-      const url = (await ingestMedia(remote)) || remote;
-      return { ok: true as const, url };
+      const ingested = await ingestMedia(remote);
+      return { ok: true as const, url: ingested || mediaProxy(remote) };
     }
     return { ok: false as const, error: last };
+  });
+
+function stillFromBody(body: unknown): string | undefined {
+  const b = body as { data?: { url?: string; b64_json?: string }[]; url?: string };
+  const b64 = b.data?.[0]?.b64_json;
+  if (b64) return `data:image/jpeg;base64,${b64}`;
+  return b.data?.[0]?.url ?? b.url;
+}
+
+export const owlRestyle = createServerFn({ method: "POST" })
+  .validator((input: { image: string; prompt: string }) => input)
+  .handler(async ({ data }) => {
+    const apiKey = key();
+    if (!apiKey) return { ok: false as const, error: "Forge is offline." };
+    const prompt = data.prompt.slice(0, 1200);
+    const image = data.image.slice(0, 2_400_000);
+    const attempts: Record<string, unknown>[] = [
+      { model: "grok-imagine-image-2.0", prompt, n: 1, response_format: "b64_json", image: { url: image, type: "image_url" } },
+      { model: "grok-imagine-image-2.0", prompt, n: 1, response_format: "b64_json", images: [image] },
+    ];
+    let last = "Restyle missed.";
+    for (const body of attempts) {
+      const hit = await xaiJson("/v1/images/edits", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      if (!hit.ok) {
+        last = hit.error;
+        if (hit.status === 429 || hit.status === 402) return { ok: false as const, error: last };
+        continue;
+      }
+      const remote = stillFromBody(hit.body);
+      if (!remote) {
+        last = "No still returned.";
+        continue;
+      }
+      if (remote.startsWith("data:")) return { ok: true as const, url: remote };
+      const ingested = await ingestMedia(remote);
+      return { ok: true as const, url: ingested || mediaProxy(remote) };
+    }
+    return { ok: false as const, error: last };
+  });
+
+export const owlFaceCode = createServerFn({ method: "POST" })
+  .validator((input: { image: string }) => input)
+  .handler(async ({ data }) => {
+    const apiKey = key();
+    if (!apiKey) return { ok: false as const, error: "Gaze is offline." };
+    const res = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "grok-4.5",
+        max_tokens: 500,
+        reasoning_effort: "low",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You write OWL-FACE/1 appearance sheets, not identity. Never claim a legal name or certainty of who someone is. One person only. If no person, output NO_PERSON. Output ONLY a fenced owl-face block with short lines: subject, age_band, skin, hair, eyes, face, nose, mouth, marks, wear, light, camera, do_not. No emoji. No extra commentary.",
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Write OWL-FACE/1 for the person in this frame. Appearance only.",
+              },
+              { type: "image_url", image_url: { url: data.image } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      return { ok: false as const, error: quotaLine(res.status, `Gaze error ${res.status}`) };
+    }
+    const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const text = body.choices?.[0]?.message?.content ?? "";
+    if (!text.trim()) return { ok: false as const, error: "No face sheet." };
+    return { ok: true as const, text };
   });
 
 export const owlSee = createServerFn({ method: "POST" })
@@ -419,12 +546,13 @@ export const owlClipStart = createServerFn({ method: "POST" })
       const payload: Record<string, unknown> = {
         model,
         prompt,
-        duration: 6,
+        duration: 5,
         aspect_ratio: "16:9",
-        resolution: "720p",
+        resolution: "480p",
       };
-      if (data.imageUrl && !data.imageUrl.startsWith("data:")) {
-        payload.image = { url: data.imageUrl, type: "image_url" };
+      const imageUrl = publicImageUrl(data.imageUrl);
+      if (imageUrl) {
+        payload.image = { url: imageUrl, type: "image_url" };
       }
       const hit = await xaiJson("/v1/videos/generations", {
         method: "POST",
@@ -432,6 +560,7 @@ export const owlClipStart = createServerFn({ method: "POST" })
       });
       if (!hit.ok) {
         last = hit.error;
+        if (hit.status === 429 || hit.status === 402) break;
         continue;
       }
       const body = hit.body as { request_id?: string; id?: string };

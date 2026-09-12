@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Camera, Code2, Feather, Gamepad2, Globe, ImageIcon, Inbox, Mic, MicOff, Moon, Send, Smartphone, UserRound, Volume2, VolumeX } from "lucide-react";
-import { owlChat, owlClipPoll, owlClipStart, owlFindTrack, owlHear, owlImagine, owlSee, owlSpeak } from "@/lib/owl/ai";
+import { BookOpen, Camera, Code2, Feather, Gamepad2, Globe, ImageIcon, Inbox, Mic, MicOff, Moon, Paperclip, Send, Smartphone, UserRound, Volume2, VolumeX } from "lucide-react";
+import { owlChat, owlClipPoll, owlClipStart, owlFaceCode, owlFindTrack, owlHear, owlImagine, owlRestyle, owlSee, owlSpeak } from "@/lib/owl/ai";
 import { cinematicLine, parseCommand, stripWakeWord, looksLikeMath } from "@/lib/owl/commands";
 import { playTrack, stopMusic, TRACKS } from "@/lib/owl/music";
 import { attachVideo, ensureSenses, getSensesStream } from "@/lib/owl/senses";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Arcade } from "./Arcade";
 import { BootSequence } from "./BootSequence";
 import { batteryPct, chime, downloadHref, enableTilt, moonPhase, readBattery, roostSigil, sampleFrame, skyBrief } from "@/lib/owl/relics";
+import { faceToImaginePrompt, parseFaceCode, PORTRAIT_STYLES, shrinkDataUrl, stillToDataUrl, stylePrompt, type StyleId } from "@/lib/owl/portrait";
 import { MiniCompanion } from "./MiniCompanion";
 import { OwlFace } from "./OwlFace";
 import { PanelBody } from "./Panels";
@@ -116,6 +117,7 @@ export function OwlApp() {
   const setMemory = useOwlStore((s) => s.setMemory);
   const addTypo = useOwlStore((s) => s.addTypo);
   const addImage = useOwlStore((s) => s.addImage);
+  const setLastFaceCode = useOwlStore((s) => s.setLastFaceCode);
   const setLastCode = useOwlStore((s) => s.setLastCode);
   const setLastSite = useOwlStore((s) => s.setLastSite);
   const setCall = useOwlStore((s) => s.setCall);
@@ -463,6 +465,15 @@ export function OwlApp() {
         case "generate_video":
           setPanel("studio");
           break;
+        case "restyle":
+          setPanel("studio");
+          break;
+        case "mint_face":
+          setPanel("vision");
+          break;
+        case "forge_face":
+          setPanel("studio");
+          break;
         case "code":
           setPanel("code");
           break;
@@ -526,6 +537,9 @@ export function OwlApp() {
         pushMessage({ role: "owl", text: "Still ready.", imageUrl: res.url });
         setStatus("Still ready.");
         void voiceReply("Still ready.", true);
+      } catch {
+        pushMessage({ role: "owl", text: "Forge missed. Try again, or wait if the week is spent." });
+        setStatus("Forge missed.");
       } finally {
         setThinking(false);
       }
@@ -542,13 +556,19 @@ export function OwlApp() {
       try {
         const lastStill = useOwlStore.getState().studioImages[0]?.url;
         const start = await owlClipStart({
-          data: { prompt, imageUrl: lastStill && !lastStill.startsWith("data:") ? lastStill : undefined },
+          data: {
+            prompt,
+            imageUrl:
+              lastStill && lastStill.startsWith("https://") && lastStill.includes(".x.ai")
+                ? lastStill
+                : undefined,
+          },
         });
         if (gen !== weaveGen.current) return;
         if (!start.ok) {
           pushMessage({
             role: "owl",
-            text: start.error + " Clip weaver is live — wait a breath and try Weave clip again.",
+            text: start.error,
           });
           setStatus(start.error);
           return;
@@ -594,6 +614,9 @@ export function OwlApp() {
         }
         pushMessage({ role: "owl", text: "The clip is still weaving. Try Weave clip once more." });
         setStatus("Still weaving.");
+      } catch {
+        pushMessage({ role: "owl", text: "Clip weaver missed. If the week is spent, Relics still work." });
+        setStatus("Clip missed.");
       } finally {
         if (gen === weaveGen.current) setThinking(false);
       }
@@ -601,31 +624,123 @@ export function OwlApp() {
     [pushMessage, setPanel, setStatus, setThinking, voiceReply],
   );
 
-  const seeFrame = useCallback(async () => {
+  const grabFrame = useCallback(async () => {
     await ensureSenses();
     attachVideo(camRef.current);
-    const waitForVideo = async () => {
-      for (let i = 0; i < 25; i++) {
-        const video = camRef.current ?? document.querySelector("video");
-        if (video && video.readyState >= 2 && video.videoWidth) return video;
-        attachVideo(camRef.current);
-        await new Promise((r) => setTimeout(r, 200));
+    for (let i = 0; i < 25; i++) {
+      const video = camRef.current ?? document.querySelector("video");
+      if (video && video.readyState >= 2 && video.videoWidth) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 480;
+        canvas.height = Math.round((video.videoHeight / video.videoWidth) * 480) || 360;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL("image/jpeg", 0.72);
       }
-      return camRef.current ?? document.querySelector("video");
-    };
+      attachVideo(camRef.current);
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return null;
+  }, []);
+
+  const restyleStill = useCallback(
+    async (style: string) => {
+      const id = (style as StyleId) || "sketch";
+      const last = useOwlStore.getState().studioImages[0]?.url;
+      if (!last) {
+        pushMessage({ role: "owl", text: "Drop or upload a photo first, then pick a style." });
+        setPanel("studio");
+        return;
+      }
+      setThinking(true);
+      setStatus("Restyling.");
+      setPanel("studio");
+      try {
+        let image = last;
+        if (!image.startsWith("data:")) {
+          const blob = await fetch(image).then((r) => r.blob());
+          image = await stillToDataUrl(new File([blob], "still.jpg", { type: blob.type || "image/jpeg" }), 768);
+        } else {
+          image = await shrinkDataUrl(image, 768);
+        }
+        const chosen = (PORTRAIT_STYLES.some((s) => s.id === id) ? id : "sketch") as StyleId;
+        const res = await owlRestyle({ data: { image, prompt: stylePrompt(chosen) } });
+        if (!res.ok) {
+          pushMessage({ role: "owl", text: res.error });
+          setStatus(res.error);
+          return;
+        }
+        const label = PORTRAIT_STYLES.find((s) => s.id === id)?.label ?? id;
+        addImage({ id: crypto.randomUUID(), url: res.url, prompt: `${label} restyle`, at: Date.now() });
+        pushMessage({ role: "owl", text: `${label} still ready.`, imageUrl: res.url });
+        setStatus("Still ready.");
+        void voiceReply(`${label} still ready.`, true);
+      } catch {
+        pushMessage({ role: "owl", text: "Restyle missed." });
+        setStatus("Restyle missed.");
+      } finally {
+        setThinking(false);
+      }
+    },
+    [addImage, pushMessage, setPanel, setStatus, setThinking, voiceReply],
+  );
+
+  const mintFace = useCallback(async () => {
     setPanel("vision");
-    const video = await waitForVideo();
-    if (!video || video.readyState < 2) {
+    const image = await grabFrame();
+    if (!image) {
       pushMessage({ role: "owl", text: "I cannot see yet. Tap Open the ear so the camera is granted, then ask again." });
       return;
     }
-    const canvas = document.createElement("canvas");
-    canvas.width = 480;
-    canvas.height = Math.round((video.videoHeight / video.videoWidth) * 480) || 360;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const image = canvas.toDataURL("image/jpeg", 0.72);
+    setThinking(true);
+    setStatus("Writing the face sheet.");
+    try {
+      const res = await owlFaceCode({ data: { image } });
+      const raw = res.ok ? res.text : res.error;
+      if (!res.ok) {
+        pushMessage({ role: "owl", text: raw });
+        setStatus(raw);
+        return;
+      }
+      const code = parseFaceCode(raw) ?? raw.trim();
+      if (/NO_PERSON/i.test(code) && !/^OWL-FACE/m.test(code)) {
+        pushMessage({ role: "owl", text: "No person in this frame. Sit in the gaze and mint again." });
+        setStatus("No person.");
+        return;
+      }
+      setLastFaceCode(code);
+      setLastCode({ language: "owl-face", source: code });
+      pushMessage({
+        role: "owl",
+        text: "Face sheet. Copy this into OWL or any other image AI. It is appearance, not a name.",
+        imageUrl: image,
+        code: { language: "owl-face", source: code },
+      });
+      setStatus("Face sheet ready.");
+      void voiceReply("Face sheet ready. Copy it if you want this face elsewhere.", true);
+    } catch {
+      pushMessage({ role: "owl", text: "Could not write the sheet." });
+    } finally {
+      setThinking(false);
+    }
+  }, [grabFrame, pushMessage, setLastCode, setLastFaceCode, setPanel, setStatus, setThinking, voiceReply]);
+
+  const forgeFace = useCallback(
+    async (code: string) => {
+      setLastFaceCode(code);
+      await imagine(faceToImaginePrompt(code));
+    },
+    [imagine, setLastFaceCode],
+  );
+
+  const seeFrame = useCallback(async () => {
+    setPanel("vision");
+    const image = await grabFrame();
+    if (!image) {
+      pushMessage({ role: "owl", text: "I cannot see yet. Tap Open the ear so the camera is granted, then ask again." });
+      return;
+    }
     setThinking(true);
     setStatus("Looking.");
     try {
@@ -643,7 +758,7 @@ export function OwlApp() {
     } finally {
       setThinking(false);
     }
-  }, [pushMessage, setPanel, setStatus, setThinking, voiceReply]);
+  }, [grabFrame, pushMessage, setPanel, setStatus, setThinking, voiceReply]);
 
   const askMind = useCallback(
     async (prompt: string, extras?: { imageUrl?: string; mode?: MindMode }) => {
@@ -728,13 +843,14 @@ export function OwlApp() {
       setIdleWalk(false);
       setPanel("relics");
       if (file.type.startsWith("image/")) {
-        const url = await new Promise<string>((resolve) => {
-          const r = new FileReader();
-          r.onload = () => resolve(String(r.result || ""));
-          r.readAsDataURL(file);
-        });
+        const url = await stillToDataUrl(file, 768);
         addImage({ id: crypto.randomUUID(), url, prompt: file.name, at: Date.now() });
-        pushMessage({ role: "owl", text: `Dropped still: ${file.name}`, imageUrl: url });
+        pushMessage({
+          role: "owl",
+          text: `Dropped still: ${file.name}. Say ghibli, sketch, noir, oil, watercolor, clay, comic, pixel, or realistic.`,
+          imageUrl: url,
+        });
+        setPanel("studio");
         setStatus("Nest caught a still.");
         return;
       }
@@ -755,9 +871,10 @@ export function OwlApp() {
       const { woke, rest } = stripWakeWord(raw);
       const nowPhase = useOwlStore.getState().phase;
       if (nowPhase !== "awake") {
-        if (!woke) return;
+        const looksCmd = /^(open|launch|go to|visit|browse|play|call|forge|weave)\b/i.test((rest || raw).trim());
+        if (!woke && !looksCmd) return;
         awaken();
-        if (!rest) {
+        if (!rest && !looksCmd) {
           setStatus(`Hello, ${useOwlStore.getState().memory.bossName}.`);
           return;
         }
@@ -792,6 +909,18 @@ export function OwlApp() {
         }
         if (action.type === "generate_video") {
           await weaveClip(action.prompt);
+          return;
+        }
+        if (action.type === "restyle") {
+          await restyleStill(action.style);
+          return;
+        }
+        if (action.type === "mint_face") {
+          await mintFace();
+          return;
+        }
+        if (action.type === "forge_face") {
+          await forgeFace(action.code);
           return;
         }
         if (action.type === "code") {
@@ -841,7 +970,7 @@ export function OwlApp() {
       }
       await askMind(text, { mode: looksLikeMath(text.toLowerCase(), text) ? "math" : "talk" });
     },
-    [addTypo, askMind, awaken, imagine, pushMessage, runAction, seeFrame, setStatus, shareStill, weaveClip],
+    [addTypo, askMind, awaken, forgeFace, imagine, mintFace, pushMessage, restyleStill, runAction, seeFrame, setStatus, shareStill, weaveClip],
   );
 
   useEffect(() => {
@@ -1020,15 +1149,19 @@ export function OwlApp() {
     const rec = new SR();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.lang = "en-US";
-    rec.maxAlternatives = 1;
+    rec.lang = typeof navigator !== "undefined" && navigator.language ? navigator.language : "en-US";
+    rec.maxAlternatives = 4;
     rec.onresult = (e: SpeechRecEvent) => {
       let final = "";
       let interim = "";
       for (let i = e.resultIndex ?? 0; i < e.results.length; i++) {
         const row = e.results[i];
-        const t = row[0]?.transcript ?? "";
-        if (row.isFinal) final += t;
+        const alts: string[] = [];
+        const n = row.length ?? 1;
+        for (let a = 0; a < n; a++) alts.push(row[a]?.transcript ?? "");
+        const hit = alts.find((t) => /\b(hey|hi|ok|okay)?\s*(owl|all|ol)\b/i.test(t) || /\b(open|play|launch|forge|weave)\b/i.test(t));
+        const t = (hit || alts[0] || "").trim();
+        if (row.isFinal) final += (final ? " " : "") + t;
         else interim += t;
       }
       if (interim) setStatus(interim);
@@ -1270,9 +1403,21 @@ export function OwlApp() {
                   />
                 )}
                 {m.code && (
-                  <pre className="mt-2 overflow-x-auto rounded-md border border-border bg-bg p-2 font-mono text-xs">
-                    {m.code.source}
-                  </pre>
+                  <div className="mt-2">
+                    <pre className="overflow-x-auto rounded-md border border-border bg-bg p-2 font-mono text-xs">
+                      {m.code.source}
+                    </pre>
+                    <button
+                      type="button"
+                      className="mt-1 text-xs text-iris"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(m.code!.source);
+                        setStatus("Copied.");
+                      }}
+                    >
+                      Copy {m.code.language === "owl-face" ? "face sheet" : "code"}
+                    </button>
+                  </div>
                 )}
               </article>
             ))}
@@ -1350,6 +1495,8 @@ export function OwlApp() {
                     onImagine={(p) => void imagine(p)}
                     onClip={(p) => void weaveClip(p)}
                     onSee={() => void seeFrame()}
+                    onMint={() => void mintFace()}
+                    onRestyle={(s) => void restyleStill(s)}
                     onCode={(p) => void submit(`write code ${p}`)}
                     onSite={(p) => void submit(`build a website ${p}`)}
                     onShare={(id) => void shareStill(id)}
@@ -1479,6 +1626,20 @@ export function OwlApp() {
         >
           {listening ? <Mic className="size-4" /> : <MicOff className="size-4" />}
         </button>
+        <label className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-full border border-border text-muted hover:text-fg">
+          <Paperclip className="size-4" />
+          <span className="sr-only">Upload photo</span>
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) void dropFile(f);
+            }}
+          />
+        </label>
         <label className="sr-only" htmlFor="owl-input">
           Command OWL
         </label>
@@ -1570,5 +1731,5 @@ type SpeechRec = {
 
 type SpeechRecEvent = {
   resultIndex?: number;
-  results: ArrayLike<{ isFinal?: boolean; 0: { transcript: string } }>;
+  results: ArrayLike<{ isFinal?: boolean; length?: number; [i: number]: { transcript: string } }>;
 };

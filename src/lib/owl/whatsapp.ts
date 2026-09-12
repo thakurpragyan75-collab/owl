@@ -48,7 +48,7 @@ export function launchHref(url: string): boolean {
       return true;
     }
   } catch {
-    /* blocked */
+    /* blocked in this nest */
   }
   try {
     const topWin = window.top;

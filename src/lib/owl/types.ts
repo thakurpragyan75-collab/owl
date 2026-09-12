@@ -86,6 +86,9 @@ export type OwlAction =
   | { type: "wake" }
   | { type: "generate_image"; prompt: string }
   | { type: "generate_video"; prompt: string }
+  | { type: "restyle"; style: string; prompt?: string }
+  | { type: "mint_face" }
+  | { type: "forge_face"; code: string }
   | { type: "code"; prompt: string }
   | { type: "website"; prompt: string }
   | { type: "game"; name?: string }

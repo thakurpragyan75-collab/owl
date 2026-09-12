@@ -5,6 +5,7 @@ import { frameSrc, previewShot } from "@/lib/owl/sites";
 import { parseNestPayload, useOwlStore } from "@/lib/owl/store";
 import { RelicsPanel } from "./Relics";
 import { cn } from "@/lib/utils";
+import { PORTRAIT_STYLES, stillToDataUrl, type StyleId } from "@/lib/owl/portrait";
 import { Bluetooth, Music2, Smartphone, Laptop, Watch, Tablet, Pencil, Trash2, Download, Upload, Check } from "lucide-react";
 import type { DeviceKind } from "@/lib/owl/types";
 
@@ -20,6 +21,8 @@ export function PanelBody({
   onImagine,
   onClip,
   onSee,
+  onMint,
+  onRestyle,
   onCode,
   onSite,
   onShare,
@@ -29,6 +32,8 @@ export function PanelBody({
   onImagine: (prompt: string) => void;
   onClip: (prompt: string) => void;
   onSee: () => void;
+  onMint: () => void;
+  onRestyle: (style: StyleId) => void;
   onCode: (prompt: string) => void;
   onSite: (prompt: string) => void;
   onShare: (deviceId?: string) => void;
@@ -36,8 +41,8 @@ export function PanelBody({
 }) {
   const panel = useOwlStore((s) => s.panel);
   if (panel === "mesh") return <MeshPanel onShare={onShare} />;
-  if (panel === "studio") return <StudioPanel onImagine={onImagine} onClip={onClip} />;
-  if (panel === "vision") return <VisionPanel onSee={onSee} />;
+  if (panel === "studio") return <StudioPanel onImagine={onImagine} onClip={onClip} onRestyle={onRestyle} />;
+  if (panel === "vision") return <VisionPanel onSee={onSee} onMint={onMint} />;
   if (panel === "codex") return <CodexPanel onInvoke={onInvoke} />;
   if (panel === "inbox") return <InboxPanel onInvoke={onInvoke} />;
   if (panel === "memory") return <MemoryPanel />;
@@ -190,18 +195,23 @@ function MeshPanel({ onShare }: { onShare: (deviceId?: string) => void }) {
 function StudioPanel({
   onImagine,
   onClip,
+  onRestyle,
 }: {
   onImagine: (prompt: string) => void;
   onClip: (prompt: string) => void;
+  onRestyle: (style: StyleId) => void;
 }) {
   const images = useOwlStore((s) => s.studioImages);
   const lastClip = useOwlStore((s) => s.lastClip);
+  const addImage = useOwlStore((s) => s.addImage);
   const [prompt, setPrompt] = useState("a geometric owl of moonlight and teal glass, night HUD");
-  const [busy, setBusy] = useState<"still" | "clip" | null>(null);
+  const [busy, setBusy] = useState<"still" | "clip" | "style" | null>(null);
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <p className="text-sm text-muted">Imagine Forge and Clip Weaver run in this roost. Stills first; clips take longer.</p>
+      <p className="text-sm text-muted">
+        Forge stills, weave clips, or upload a photo and restyle it — sketch, Ghibli, oil, and more.
+      </p>
       <textarea
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
@@ -233,6 +243,38 @@ function StudioPanel({
         >
           {busy === "clip" ? "Weaving…" : "Weave clip"}
         </button>
+        <label className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-border px-4 text-sm text-fg">
+          Upload photo
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file) return;
+              const url = await stillToDataUrl(file, 768);
+              addImage({ id: crypto.randomUUID(), url, prompt: file.name, at: Date.now() });
+            }}
+          />
+        </label>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {PORTRAIT_STYLES.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            disabled={!!busy || !images[0]}
+            className="min-h-9 rounded-full border border-border px-3 text-xs text-fg disabled:opacity-40"
+            onClick={async () => {
+              setBusy("style");
+              await onRestyle(s.id);
+              setBusy(null);
+            }}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
       {lastClip && (
         <video
@@ -256,24 +298,39 @@ function StudioPanel({
   );
 }
 
-function VisionPanel({ onSee }: { onSee: () => void }) {
+function VisionPanel({ onSee, onMint }: { onSee: () => void; onMint: () => void }) {
   const camera = useOwlStore((s) => s.permissions.camera);
+  const lastFace = useOwlStore((s) => s.lastFaceCode);
   return (
     <div className="flex h-full flex-col gap-4">
       <p className="text-sm text-muted">
-        Living Gaze. The camera stays live once granted — close this panel and it does not go dark. Tap Open the ear first if the frame is black.
+        Living Gaze. Observe the frame, or mint a face sheet you can copy into OWL or any other image AI.
       </p>
       <VisionPreview />
       {!camera && (
         <p className="text-xs text-warn">Allow the camera when the nest asks. Then tap observe.</p>
       )}
-      <button
-        type="button"
-        onClick={onSee}
-        className="min-h-11 rounded-md bg-accent px-4 text-sm font-medium text-accent-fg"
-      >
-        Observe this frame
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onSee}
+          className="min-h-11 rounded-md bg-accent px-4 text-sm font-medium text-accent-fg"
+        >
+          Observe this frame
+        </button>
+        <button
+          type="button"
+          onClick={onMint}
+          className="min-h-11 rounded-md border border-border px-4 text-sm text-fg"
+        >
+          Mint face sheet
+        </button>
+      </div>
+      {lastFace && (
+        <pre className="max-h-40 overflow-auto rounded-md border border-border bg-bg p-2 font-mono text-[11px] leading-relaxed text-muted">
+          {lastFace}
+        </pre>
+      )}
     </div>
   );
 }
@@ -357,7 +414,7 @@ function BrowsePanel() {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-4 text-sm font-medium text-accent-fg"
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-accent px-4 text-base font-medium text-accent-fg"
         >
           {playing ? "Open on YouTube" : `Open ${label}`}
         </a>

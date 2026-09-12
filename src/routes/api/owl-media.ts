@@ -1,12 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 function allowed(host: string) {
-  return (
-    host === "imgen.x.ai" ||
-    host === "vidgen.x.ai" ||
-    host.endsWith(".imgen.x.ai") ||
-    host.endsWith(".vidgen.x.ai")
-  );
+  return host === "x.ai" || host.endsWith(".x.ai");
 }
 
 export const Route = createFileRoute("/api/owl-media")({

@@ -1,5 +1,6 @@
 import { MODULE_WORDS, resolveSite } from "./sites";
 import type { ModuleId, OwlAction } from "./types";
+import { parseFaceCode, styleByName } from "./portrait";
 
 function norm(s: string) {
   return s
@@ -13,18 +14,24 @@ function norm(s: string) {
 export function stripWakeWord(raw: string): { woke: boolean; rest: string } {
   const trimmed = raw.trim();
   const text = norm(trimmed);
-  const wakes = ["hey owl", "hi owl", "okay owl", "ok owl", "yo owl", "hello owl", "hey ol", "hay owl"];
+  const wakes = [
+    "hey owl", "hi owl", "okay owl", "ok owl", "yo owl", "hello owl",
+    "hey ol", "hay owl", "hey all", "hey ow", "hey al", "hey howl",
+    "hey old", "hey owel", "hey awl", "okey owl",
+  ];
   for (const w of wakes) {
     if (text === w) return { woke: true, rest: "" };
     if (text.startsWith(w + " ")) {
-      const re = new RegExp(`^${w.replace(/ /g, "\\s+")}\\s+`, "i");
+      const re = new RegExp("^" + w.replace(/ /g, "\\s+") + "\\s+", "i");
       const m = trimmed.match(re);
       return { woke: true, rest: m ? trimmed.slice(m[0].length).trim() : trimmed };
     }
   }
   const smashed = text.replace(/\s/g, "");
-  if (smashed === "heyowl" || smashed.startsWith("heyowl")) {
-    return { woke: true, rest: trimmed.replace(/^hey\s*owl\s+/i, "").trim() };
+  if (/^(hey|hi|ok|okay|yo|hello)(owl|ol|all|awl|owel|howl)/.test(smashed) || smashed === "owl") {
+    const onlyWake = /^(hey|hi|ok|okay|yo|hello)?\s*(owl|ol|all|awl|owel|howl)\s*$/i.test(trimmed);
+    const rest = trimmed.replace(/^(hey|hi|ok|okay|yo|hello)?\s*(owl|ol|all|awl|owel|howl)\s+/i, "").trim();
+    return { woke: true, rest: onlyWake ? "" : rest === trimmed ? "" : rest };
   }
   return { woke: false, rest: trimmed };
 }
@@ -191,6 +198,24 @@ export function parseCommand(raw: string): OwlAction | null {
   );
   if (vidEarly?.[1]) return { type: "generate_video", prompt: vidEarly[1].trim() };
 
+  const facePaste = parseFaceCode(original);
+  if (facePaste) return { type: "forge_face", code: facePaste };
+
+  if (
+    /^(mint (my )?face|write (my )?face|face code|iris code|who is in front|whos in front|who's in front|encode (this )?face|copy my face)/.test(
+      text,
+    )
+  ) {
+    return { type: "mint_face" };
+  }
+
+  if (
+    /^(restyle|ghibli|gibli|sketch this|sketch me|draw me|turn me into|make me|style this)\b/.test(text) ||
+    /\b(in|as) (ghibli|gibli|sketch|noir|oil|watercolor|clay|comic|pixel|ink|realistic)\b/.test(text)
+  ) {
+    return { type: "restyle", style: styleByName(original) ?? "sketch", prompt: original };
+  }
+
   const songCall = text.match(/^(?:my )?(?:favou?rite|fav) song is\s+(.+)$/);
   if (songCall?.[1]) {
     const title = songCall[1].trim().replace(/\s+/g, " ");
@@ -319,7 +344,11 @@ export function parseCommand(raw: string): OwlAction | null {
 
   const opener = text.match(/^(?:open|launch|go to|visit|browse|take me to)\s+(.+)/);
   if (opener?.[1]) {
-    const target = opener[1].replace(/^(the|app|website|site)\s+/, "").trim();
+    const target = opener[1]
+      .replace(/^(the|app|website|site)\s+/, "")
+      .replace(/\s+(?:in )?(?:a )?(?:new )?tab$/, "")
+      .replace(/\s+please$/, "")
+      .trim();
     if (MODULE_WORDS.has(target) || MODULE_WORDS.has(target.replace(/\s+/g, ""))) {
       const key = target.replace(/\s+/g, "") as ModuleId;
       const map: Record<string, ModuleId> = {
@@ -453,6 +482,12 @@ export function cinematicLine(action: OwlAction, boss: string): string {
       return "Forging the still.";
     case "generate_video":
       return "Weaving a clip. This takes a moment.";
+    case "restyle":
+      return "Restyling the still.";
+    case "mint_face":
+      return "Writing the face sheet.";
+    case "forge_face":
+      return "Forging from the face sheet.";
     case "code":
       return "Writing in the nest.";
     case "website":

@@ -12,7 +12,7 @@ OWL is a Jarvis-style roost in the browser. Speak or type. It reasons in a short
 - **Ear** — always-on mic after you grant it; hold the mic for a clip if dictation is missing
 - **Gaze** — live camera, observe a frame
 - **Nest** — your name, city, song, notes, and people. Edit, delete, import, export. Stays on this device
-- **Studio** — stills and clips from a prompt, in the roost. Clips play in the thread.
+- **Studio** — stills and clips from a prompt, in the roost. Clips play in the thread. Upload a photo and restyle it (sketch, Ghibli, noir…). Gaze can mint a copyable **OWL-FACE** sheet so other AIs can draw the same person.
 - **Relics** — ten things a chat box cannot do: drop files, moon in the HUD, hourglass ring, tilt perch, breath ring, cover-eye, roost sigil, color talon, shake tease, idle walk.
 - **Mesh** — pair devices, share a still over the system sheet or Bluetooth
 - **Arcade** — snake, pong, perch
@@ -44,6 +44,8 @@ start hourglass
 tilt perch
 what color is this
 weave a clip of a geometric owl turning its head
+ghibli
+mint face
 ```
 
 ## Nest

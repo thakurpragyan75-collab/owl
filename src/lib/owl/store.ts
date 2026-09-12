@@ -53,6 +53,7 @@ type OwlState = {
   browseUrl: string | null;
   nowPlaying: NowPlaying | null;
   lastClip: string | null;
+  lastFaceCode: string | null;
   focusUntil: number | null;
   qrPayload: string | null;
   whatsapp: WhatsAppWire | null;
@@ -94,6 +95,7 @@ type OwlState = {
   setBrowse: (url: string | null) => void;
   setNowPlaying: (n: NowPlaying | null) => void;
   setLastClip: (url: string | null) => void;
+  setLastFaceCode: (code: string | null) => void;
   setFocusUntil: (t: number | null) => void;
   setQrPayload: (q: string | null) => void;
   setWhatsapp: (w: WhatsAppWire | null) => void;
@@ -188,6 +190,7 @@ export const useOwlStore = create<OwlState>()(
       browseUrl: null,
       nowPlaying: null,
       lastClip: null,
+      lastFaceCode: null,
       focusUntil: null,
       qrPayload: null,
       whatsapp: null,
@@ -273,6 +276,7 @@ export const useOwlStore = create<OwlState>()(
       setBrowse: (browseUrl) => set({ browseUrl, panel: browseUrl ? "browse" : get().panel === "browse" ? null : get().panel }),
       setNowPlaying: (nowPlaying) => set({ nowPlaying }),
       setLastClip: (lastClip) => set({ lastClip }),
+      setLastFaceCode: (lastFaceCode) => set({ lastFaceCode }),
       setFocusUntil: (focusUntil) => set({ focusUntil }),
       setQrPayload: (qrPayload) => set({ qrPayload }),
       setWhatsapp: (whatsapp) => set({ whatsapp }),
