@@ -89,6 +89,9 @@ export type OwlAction =
   | { type: "restyle"; style: string; prompt?: string }
   | { type: "mint_face" }
   | { type: "forge_face"; code: string }
+  | { type: "mint_seed" }
+  | { type: "forge_me"; prompt: string }
+  | { type: "load_seed"; raw: string }
   | { type: "code"; prompt: string }
   | { type: "website"; prompt: string }
   | { type: "game"; name?: string }

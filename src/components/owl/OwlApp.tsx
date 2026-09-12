@@ -13,6 +13,7 @@ import { Arcade } from "./Arcade";
 import { BootSequence } from "./BootSequence";
 import { batteryPct, chime, downloadHref, enableTilt, moonPhase, readBattery, roostSigil, sampleFrame, skyBrief } from "@/lib/owl/relics";
 import { faceToImaginePrompt, parseFaceCode, PORTRAIT_STYLES, shrinkDataUrl, stillToDataUrl, stylePrompt, type StyleId } from "@/lib/owl/portrait";
+import { downloadSeed, mintSeed, parseSeedText, readNpy512, seedJson, type OwlSeed } from "@/lib/owl/seed";
 import { MiniCompanion } from "./MiniCompanion";
 import { OwlFace } from "./OwlFace";
 import { PanelBody } from "./Panels";
@@ -118,6 +119,7 @@ export function OwlApp() {
   const addTypo = useOwlStore((s) => s.addTypo);
   const addImage = useOwlStore((s) => s.addImage);
   const setLastFaceCode = useOwlStore((s) => s.setLastFaceCode);
+  const setLastSeed = useOwlStore((s) => s.setLastSeed);
   const setLastCode = useOwlStore((s) => s.setLastCode);
   const setLastSite = useOwlStore((s) => s.setLastSite);
   const setCall = useOwlStore((s) => s.setCall);
@@ -474,6 +476,15 @@ export function OwlApp() {
         case "forge_face":
           setPanel("studio");
           break;
+        case "mint_seed":
+          setPanel("studio");
+          break;
+        case "forge_me":
+          setPanel("studio");
+          break;
+        case "load_seed":
+          setPanel("studio");
+          break;
         case "code":
           setPanel("code");
           break;
@@ -730,6 +741,103 @@ export function OwlApp() {
     [imagine, setLastFaceCode],
   );
 
+  const applySeed = useCallback(
+    (seed: OwlSeed, announce = true) => {
+      if (!seed) return;
+      setLastSeed(seed);
+      if (seed.sheet) {
+        setLastFaceCode(seed.sheet);
+        setLastCode({ language: "owl-face", source: seed.sheet });
+      }
+      if (seed.crop) {
+        addImage({ id: crypto.randomUUID(), url: seed.crop, prompt: "face seed crop", at: Date.now() });
+      }
+      setLastCode({ language: "json", source: seedJson(seed) });
+      if (announce) {
+        pushMessage({
+          role: "owl",
+          text: "Face seed loaded. 512 numbers plus a crop. Say “as me in ghibli” or tap As me.",
+          imageUrl: seed.crop,
+          code: { language: "json", source: seedJson({ ...seed, crop: seed.crop ? "[crop]" : undefined }) },
+        });
+      }
+    },
+    [addImage, pushMessage, setLastCode, setLastFaceCode, setLastSeed],
+  );
+
+  const mintSeedPack = useCallback(async () => {
+    setPanel("studio");
+    let image = useOwlStore.getState().studioImages[0]?.url;
+    if (!image || !image.startsWith("data:")) {
+      const frame = await grabFrame();
+      if (frame) image = frame;
+    }
+    if (!image) {
+      pushMessage({ role: "owl", text: "Upload a photo first (paperclip or Studio), or open Gaze and sit in frame." });
+      return;
+    }
+    setThinking(true);
+    setStatus("Extracting the 512-d seed.");
+    try {
+      const seed = await mintSeed({ image, sheet: useOwlStore.getState().lastFaceCode ?? undefined });
+      applySeed(seed, false);
+      downloadSeed(seed, "json");
+      pushMessage({
+        role: "owl",
+        text: "Seed ready. owl-seed.json downloaded (crop + 512 numbers). Download .npy too if you want the raw vector. OWL draws you from the crop in this pack — say as me in ghibli.",
+        imageUrl: seed.crop,
+        code: {
+          language: "json",
+          source: `OWL-SEED/1 dim=512\n${seed.vector.slice(0, 12).map((n) => n.toFixed(5)).join(", ")} …`,
+        },
+      });
+      setStatus("Seed ready.");
+      void voiceReply("Face seed ready.", true);
+    } catch {
+      pushMessage({ role: "owl", text: "Could not extract a seed from that still." });
+    } finally {
+      setThinking(false);
+    }
+  }, [applySeed, grabFrame, pushMessage, setPanel, setStatus, setThinking, voiceReply]);
+
+  const forgeMe = useCallback(
+    async (prompt: string) => {
+      const seed = useOwlStore.getState().lastSeed;
+      if (!seed?.crop) {
+        pushMessage({ role: "owl", text: "No seed yet. Upload a photo and say mint seed." });
+        setPanel("studio");
+        return;
+      }
+      const style = prompt.replace(/^(as me|draw me|generate me|forge me)\s*/i, "").trim() || "photoreal portrait, natural light";
+      setThinking(true);
+      setStatus("Forging from your seed.");
+      setPanel("studio");
+      try {
+        const image = seed.crop.startsWith("data:") ? seed.crop : await shrinkDataUrl(seed.crop, 768);
+        const res = await owlRestyle({
+          data: {
+            image,
+            prompt: `Keep this exact person and face. ${style}. One subject, no extra people, no text.`,
+          },
+        });
+        if (!res.ok) {
+          pushMessage({ role: "owl", text: res.error });
+          setStatus(res.error);
+          return;
+        }
+        addImage({ id: crypto.randomUUID(), url: res.url, prompt: `as me · ${style}`, at: Date.now() });
+        pushMessage({ role: "owl", text: "Still from your seed.", imageUrl: res.url });
+        setStatus("Still ready.");
+        void voiceReply("Still from your seed.", true);
+      } catch {
+        pushMessage({ role: "owl", text: "Could not forge from the seed." });
+      } finally {
+        setThinking(false);
+      }
+    },
+    [addImage, pushMessage, setPanel, setStatus, setThinking, voiceReply],
+  );
+
   const seeFrame = useCallback(async () => {
     setPanel("vision");
     const image = await grabFrame();
@@ -843,14 +951,36 @@ export function OwlApp() {
         addImage({ id: crypto.randomUUID(), url, prompt: file.name, at: Date.now() });
         pushMessage({
           role: "owl",
-          text: `Dropped still: ${file.name}. Say ghibli, sketch, noir, oil, watercolor, clay, comic, pixel, or realistic.`,
+          text: `Dropped still: ${file.name}. Say mint seed, or ghibli / sketch.`,
           imageUrl: url,
         });
         setPanel("studio");
         setStatus("Nest caught a still.");
         return;
       }
+      if (file.name.endsWith(".npy")) {
+        const buf = await file.arrayBuffer();
+        const vector = await readNpy512(buf);
+        if (!vector) {
+          pushMessage({ role: "owl", text: "That .npy is not a 512-d face vector." });
+          return;
+        }
+        applySeed({ kind: "OWL-SEED/1", at: Date.now(), dim: 512, vector }, false);
+        pushMessage({
+          role: "owl",
+          text: "Loaded 512 numbers. A .npy has no crop — drop owl-seed.json (or a photo) so I can draw you.",
+        });
+        setPanel("studio");
+        return;
+      }
       const text = await file.text().catch(() => "");
+      const seed = text ? parseSeedText(text) : null;
+      if (seed) {
+        applySeed(seed);
+        setPanel("studio");
+        setStatus("Seed loaded.");
+        return;
+      }
       if (text.trim()) {
         addNote(text.trim().slice(0, 800));
         pushMessage({ role: "owl", text: `Dropped into nest: ${file.name}` });
@@ -859,7 +989,7 @@ export function OwlApp() {
       }
       pushMessage({ role: "owl", text: "I can nest images and text files." });
     },
-    [addImage, addNote, pushMessage, setPanel, setStatus],
+    [addImage, addNote, applySeed, pushMessage, setPanel, setStatus],
   );
 
   const submit = useCallback(
@@ -919,6 +1049,19 @@ export function OwlApp() {
           await forgeFace(action.code);
           return;
         }
+        if (action.type === "mint_seed") {
+          await mintSeedPack();
+          return;
+        }
+        if (action.type === "forge_me") {
+          await forgeMe(action.prompt);
+          return;
+        }
+        if (action.type === "load_seed") {
+          const seed = parseSeedText(action.raw);
+          if (seed) applySeed(seed);
+          return;
+        }
         if (action.type === "code") {
           await askMind(`Write complete code for: ${action.prompt}`);
           return;
@@ -966,7 +1109,7 @@ export function OwlApp() {
       }
       await askMind(text, { mode: looksLikeMath(text.toLowerCase(), text) ? "math" : "talk" });
     },
-    [addTypo, askMind, awaken, forgeFace, imagine, mintFace, pushMessage, restyleStill, runAction, seeFrame, setStatus, shareStill, weaveClip],
+    [addTypo, applySeed, askMind, awaken, forgeFace, forgeMe, imagine, mintFace, mintSeedPack, pushMessage, restyleStill, runAction, seeFrame, setStatus, shareStill, weaveClip],
   );
 
   useEffect(() => {
@@ -1492,6 +1635,8 @@ export function OwlApp() {
                     onClip={(p) => void weaveClip(p)}
                     onSee={() => void seeFrame()}
                     onMint={() => void mintFace()}
+                    onMintSeed={() => void mintSeedPack()}
+                    onForgeMe={(p) => void forgeMe(p)}
                     onRestyle={(s) => void restyleStill(s)}
                     onCode={(p) => void submit(`write code ${p}`)}
                     onSite={(p) => void submit(`build a website ${p}`)}

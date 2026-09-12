@@ -37,6 +37,7 @@ export const OWL_FEATURES: OwlFeature[] = [
   { id: "imagine-forge", name: "Imagine Forge", blurb: "Creates still images from a short prompt, in-app, no other site.", kind: "live", invoke: "open studio", group: "Make" },
   { id: "style-molt", name: "Style Molt", blurb: "Upload a photo, then restyle it: sketch, Ghibli, noir, oil, watercolor, clay, comic, pixel, ink.", kind: "live", invoke: "ghibli", group: "Make" },
   { id: "iris-code", name: "Iris Code", blurb: "Gaze writes a copyable OWL-FACE sheet of whoever is in front — paste it into OWL or any other image AI.", kind: "live", invoke: "mint face", group: "Make" },
+  { id: "face-seed", name: "Face Seed", blurb: "Upload a photo → 512-number owl-seed.json / .npy plus a crop. OWL then draws you: “as me in ghibli”.", kind: "live", invoke: "mint seed", group: "Make" },
   { id: "edit-alchemist", name: "Edit Alchemist", blurb: "Rewrites an image by instruction after you generate one.", kind: "live", invoke: "open studio", group: "Make" },
   { id: "clip-weaver", name: "Clip Weaver", blurb: "Starts a short generated clip from a prompt when you confirm the spend.", kind: "live", invoke: "open studio", group: "Make" },
   { id: "code-nest", name: "Code Nest", blurb: "Writes code on request and can run JavaScript in a sandboxed perch.", kind: "live", invoke: "open code", group: "Make" },

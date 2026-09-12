@@ -1,6 +1,7 @@
 import { MODULE_WORDS, resolveSite } from "./sites";
 import type { ModuleId, OwlAction } from "./types";
 import { parseFaceCode, styleByName } from "./portrait";
+import { parseSeedText } from "./seed";
 
 function norm(s: string) {
   return s
@@ -205,8 +206,26 @@ export function parseCommand(raw: string): OwlAction | null {
   );
   if (vidEarly?.[1]) return { type: "generate_video", prompt: vidEarly[1].trim() };
 
+  const seedPaste = parseSeedText(original);
+  if (seedPaste) return { type: "load_seed", raw: original };
+
   const facePaste = parseFaceCode(original);
   if (facePaste) return { type: "forge_face", code: facePaste };
+
+  if (
+    /^(mint (my )?seed|face seed|extract (my )?face|save (my )?(face|identity|seed)|download (my )?face|npy|512)/.test(
+      text,
+    )
+  ) {
+    return { type: "mint_seed" };
+  }
+
+  if (
+    /^(as me|draw me|generate me|forge me|make me as|put me in|with my face)\b/.test(text) ||
+    /\b(using my (face|seed)|from my seed)\b/.test(text)
+  ) {
+    return { type: "forge_me", prompt: original.replace(/^(as me|draw me|generate me|forge me)\s*/i, "").trim() || "photoreal portrait" };
+  }
 
   if (
     /^(mint (my )?face|write (my )?face|face code|iris code|who is in front|whos in front|who's in front|encode (this )?face|copy my face)/.test(
@@ -495,6 +514,12 @@ export function cinematicLine(action: OwlAction, boss: string): string {
       return "Writing the face sheet.";
     case "forge_face":
       return "Forging from the face sheet.";
+    case "mint_seed":
+      return "Extracting the 512-d face seed.";
+    case "forge_me":
+      return "Forging from your seed.";
+    case "load_seed":
+      return "Loading face seed.";
     case "code":
       return "Writing in the nest.";
     case "website":

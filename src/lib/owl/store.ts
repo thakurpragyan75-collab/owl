@@ -11,6 +11,7 @@ import type {
   Person,
   Personality,
 } from "./types";
+import type { OwlSeed } from "./seed";
 
 export type HudSkin = "night" | "frost" | "ember";
 
@@ -54,6 +55,7 @@ type OwlState = {
   nowPlaying: NowPlaying | null;
   lastClip: string | null;
   lastFaceCode: string | null;
+  lastSeed: OwlSeed | null;
   focusUntil: number | null;
   qrPayload: string | null;
   whatsapp: WhatsAppWire | null;
@@ -96,6 +98,7 @@ type OwlState = {
   setNowPlaying: (n: NowPlaying | null) => void;
   setLastClip: (url: string | null) => void;
   setLastFaceCode: (code: string | null) => void;
+  setLastSeed: (seed: OwlSeed | null) => void;
   setFocusUntil: (t: number | null) => void;
   setQrPayload: (q: string | null) => void;
   setWhatsapp: (w: WhatsAppWire | null) => void;
@@ -191,6 +194,7 @@ export const useOwlStore = create<OwlState>()(
       nowPlaying: null,
       lastClip: null,
       lastFaceCode: null,
+      lastSeed: null,
       focusUntil: null,
       qrPayload: null,
       whatsapp: null,
@@ -277,6 +281,7 @@ export const useOwlStore = create<OwlState>()(
       setNowPlaying: (nowPlaying) => set({ nowPlaying }),
       setLastClip: (lastClip) => set({ lastClip }),
       setLastFaceCode: (lastFaceCode) => set({ lastFaceCode }),
+      setLastSeed: (lastSeed) => set({ lastSeed }),
       setFocusUntil: (focusUntil) => set({ focusUntil }),
       setQrPayload: (qrPayload) => set({ qrPayload }),
       setWhatsapp: (whatsapp) => set({ whatsapp }),

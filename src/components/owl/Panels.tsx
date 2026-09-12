@@ -6,6 +6,7 @@ import { parseNestPayload, useOwlStore } from "@/lib/owl/store";
 import { RelicsPanel } from "./Relics";
 import { cn } from "@/lib/utils";
 import { PORTRAIT_STYLES, stillToDataUrl, type StyleId } from "@/lib/owl/portrait";
+import { downloadSeed } from "@/lib/owl/seed";
 import { Bluetooth, Music2, Smartphone, Laptop, Watch, Tablet, Pencil, Trash2, Download, Upload, Check } from "lucide-react";
 import type { DeviceKind } from "@/lib/owl/types";
 
@@ -22,6 +23,8 @@ export function PanelBody({
   onClip,
   onSee,
   onMint,
+  onMintSeed,
+  onForgeMe,
   onRestyle,
   onCode,
   onSite,
@@ -33,6 +36,8 @@ export function PanelBody({
   onClip: (prompt: string) => void;
   onSee: () => void;
   onMint: () => void;
+  onMintSeed: () => void;
+  onForgeMe: (prompt: string) => void;
   onRestyle: (style: StyleId) => void;
   onCode: (prompt: string) => void;
   onSite: (prompt: string) => void;
@@ -41,8 +46,9 @@ export function PanelBody({
 }) {
   const panel = useOwlStore((s) => s.panel);
   if (panel === "mesh") return <MeshPanel onShare={onShare} />;
-  if (panel === "studio") return <StudioPanel onImagine={onImagine} onClip={onClip} onRestyle={onRestyle} />;
-  if (panel === "vision") return <VisionPanel onSee={onSee} onMint={onMint} />;
+  if (panel === "studio")
+    return <StudioPanel onImagine={onImagine} onClip={onClip} onRestyle={onRestyle} onMintSeed={onMintSeed} onForgeMe={onForgeMe} />;
+  if (panel === "vision") return <VisionPanel onSee={onSee} onMint={onMint} onMintSeed={onMintSeed} />;
   if (panel === "codex") return <CodexPanel onInvoke={onInvoke} />;
   if (panel === "inbox") return <InboxPanel onInvoke={onInvoke} />;
   if (panel === "memory") return <MemoryPanel />;
@@ -196,21 +202,26 @@ function StudioPanel({
   onImagine,
   onClip,
   onRestyle,
+  onMintSeed,
+  onForgeMe,
 }: {
   onImagine: (prompt: string) => void;
   onClip: (prompt: string) => void;
   onRestyle: (style: StyleId) => void;
+  onMintSeed: () => void;
+  onForgeMe: (prompt: string) => void;
 }) {
   const images = useOwlStore((s) => s.studioImages);
   const lastClip = useOwlStore((s) => s.lastClip);
+  const lastSeed = useOwlStore((s) => s.lastSeed);
   const addImage = useOwlStore((s) => s.addImage);
   const [prompt, setPrompt] = useState("a geometric owl of moonlight and teal glass, night HUD");
-  const [busy, setBusy] = useState<"still" | "clip" | "style" | null>(null);
+  const [busy, setBusy] = useState<"still" | "clip" | "style" | "seed" | "me" | null>(null);
 
   return (
     <div className="flex h-full flex-col gap-4">
       <p className="text-sm text-muted">
-        Forge stills, weave clips, or upload a photo and restyle it — sketch, Ghibli, oil, and more.
+        Forge stills, weave clips, restyle a photo, or mint a 512-d face seed.
       </p>
       <textarea
         value={prompt}
@@ -258,7 +269,45 @@ function StudioPanel({
             }}
           />
         </label>
+        <button
+          type="button"
+          disabled={!!busy}
+          className="min-h-11 rounded-md border border-border px-4 text-sm text-fg disabled:opacity-50"
+          onClick={async () => {
+            setBusy("seed");
+            await onMintSeed();
+            setBusy(null);
+          }}
+        >
+          {busy === "seed" ? "Extracting…" : "Mint seed"}
+        </button>
+        <button
+          type="button"
+          disabled={!!busy || !lastSeed?.crop}
+          className="min-h-11 rounded-md border border-iris/40 px-4 text-sm text-fg disabled:opacity-50"
+          onClick={async () => {
+            setBusy("me");
+            await onForgeMe(prompt);
+            setBusy(null);
+          }}
+        >
+          {busy === "me" ? "As me…" : "As me"}
+        </button>
       </div>
+      {lastSeed && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-2">
+          {lastSeed.crop && <img src={lastSeed.crop} alt="" className="size-10 rounded-sm object-cover" />}
+          <p className="min-w-0 flex-1 font-mono text-[11px] text-muted">
+            OWL-SEED/1 · 512-d · {lastSeed.vector.slice(0, 4).map((n) => n.toFixed(3)).join(" ")}…
+          </p>
+          <button type="button" className="text-xs text-iris" onClick={() => downloadSeed(lastSeed, "json")}>
+            json
+          </button>
+          <button type="button" className="text-xs text-iris" onClick={() => downloadSeed(lastSeed, "npy")}>
+            npy
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap gap-1.5">
         {PORTRAIT_STYLES.map((s) => (
           <button
@@ -298,7 +347,7 @@ function StudioPanel({
   );
 }
 
-function VisionPanel({ onSee, onMint }: { onSee: () => void; onMint: () => void }) {
+function VisionPanel({ onSee, onMint, onMintSeed }: { onSee: () => void; onMint: () => void; onMintSeed: () => void }) {
   const camera = useOwlStore((s) => s.permissions.camera);
   const lastFace = useOwlStore((s) => s.lastFaceCode);
   return (
@@ -324,6 +373,13 @@ function VisionPanel({ onSee, onMint }: { onSee: () => void; onMint: () => void 
           className="min-h-11 rounded-md border border-border px-4 text-sm text-fg"
         >
           Mint face sheet
+        </button>
+        <button
+          type="button"
+          onClick={onMintSeed}
+          className="min-h-11 rounded-md border border-border px-4 text-sm text-fg"
+        >
+          Mint seed
         </button>
       </div>
       {lastFace && (
