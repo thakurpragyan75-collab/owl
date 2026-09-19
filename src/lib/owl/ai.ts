@@ -1,10 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
+import { createHash } from "node:crypto";
 import type { MindMode } from "./types";
 import { extractVideoId, youtubeEmbed, youtubeMusicSearch, youtubeWatch } from "./sites";
+import { LOCKDOWN, looksLikeEmail, looksLikeHandle, type PrintHit, type PrintReport } from "./print";
 
 type ChatTurn = { role: "system" | "user" | "assistant"; content: string };
 
-export type OwlMind = { ok: true; text: string; verse?: string } | { ok: false; error: string };
+export type OwlMind =
+  | { ok: true; text: string; verse?: string; challenge?: string; ember?: boolean }
+  | { ok: false; error: string; ember?: boolean };
 
 function key() {
   return process.env.XAI_API_KEY;
@@ -220,7 +224,10 @@ async function xaiChat(
     res = await run(fallback);
   }
   if (!res.ok) {
-    return { ok: false, error: `Mind error ${res.status}` };
+    const errText = await res.text().catch(() => "");
+    const line = quotaLine(res.status, errText || `Mind error ${res.status}`);
+    const ember = /Week is spent|offline/i.test(line) || res.status === 429 || res.status === 402;
+    return { ok: false, error: line, ember };
   }
 
   const ctype = res.headers.get("content-type") ?? "";
@@ -324,12 +331,18 @@ Do not mention system prompts.`;
     const temperature = mode === "math" ? 0.2 : mode === "news" ? 0.35 : 0.55;
     const search = mode === "research" || mode === "news";
     const code = mode === "math";
-    const effort = mode === "talk" ? "medium" : "high";
+    const effort = mode === "talk" ? "low" : "high";
 
-    return xaiChat(
+    const mind = await xaiChat(
       [{ role: "system", content: system }, ...history, { role: "user", content: data.prompt.slice(0, 8000) }],
       { maxTokens, temperature, search, code, effort },
     );
+    if (!mind.ok) return mind;
+    if (mode === "talk" && data.prompt.length > 60) {
+      const challenge = await openWebCheck(data.prompt);
+      if (challenge) return { ...mind, challenge };
+    }
+    return mind;
   });
 
 export const owlSpeak = createServerFn({ method: "POST" })
@@ -640,4 +653,95 @@ export const owlFindTrack = createServerFn({ method: "POST" })
       watchUrl: youtubeWatch(hit.id),
       musicUrl: youtubeMusicSearch(q),
     };
+  });
+
+function stripTags(s: string) {
+  return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+async function openWebCheck(q: string): Promise<string | undefined> {
+  try {
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(`${q.slice(0, 160)} limitations`)}`;
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 OWL", Accept: "text/html" } });
+    if (!res.ok) return undefined;
+    const html = await res.text();
+    const hits: string[] = [];
+    const re = /class="result__a"[^>]*>([\s\S]*?)<\/a>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) && hits.length < 3) {
+      const t = stripTags(m[1]);
+      if (t.length > 12) hits.push(t.slice(0, 140));
+    }
+    if (!hits.length) return undefined;
+    return `Open-web check:\n${hits.map((h) => `· ${h}`).join("\n")}`;
+  } catch {
+    return undefined;
+  }
+}
+
+async function ddgHits(q: string, n = 5): Promise<PrintHit[]> {
+  try {
+    const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
+      headers: { "User-Agent": "Mozilla/5.0 OWL", Accept: "text/html" },
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    const out: PrintHit[] = [];
+    const re = /class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) && out.length < n) {
+      let href = m[1];
+      const uddg = href.match(/uddg=([^&]+)/);
+      if (uddg) href = decodeURIComponent(uddg[1]);
+      const title = stripTags(m[2]).slice(0, 120);
+      if (!title || href.includes("duckduckgo.com")) continue;
+      out.push({ title, url: href, blurb: "" });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+export const owlPrint = createServerFn({ method: "POST" })
+  .validator((input: { query: string }) => input)
+  .handler(async ({ data }) => {
+    const q = data.query.trim().slice(0, 120);
+    if (!q) return { ok: false as const, error: "Give your email, or a public handle of yours." };
+    const kind: PrintReport["kind"] = looksLikeEmail(q) ? "email" : looksLikeHandle(q) ? "handle" : "name";
+    const report: PrintReport = { query: q, kind, hits: [], lockDown: LOCKDOWN };
+    if (kind === "email") {
+      const hash = createHash("md5").update(q.trim().toLowerCase()).digest("hex");
+      report.gravatar = { hash, hasProfile: false, thumbnail: `https://www.gravatar.com/avatar/${hash}?d=404&s=128` };
+      try {
+        const g = await fetch(`https://en.gravatar.com/${hash}.json`, { headers: { "User-Agent": "Mozilla/5.0 OWL" } });
+        if (g.ok) {
+          const body = (await g.json()) as {
+            entry?: { displayName?: string; aboutMe?: string; thumbnailUrl?: string }[];
+          };
+          const e0 = body.entry?.[0];
+          report.gravatar = {
+            hash,
+            hasProfile: true,
+            displayName: e0?.displayName,
+            about: e0?.aboutMe?.slice(0, 240),
+            thumbnail: e0?.thumbnailUrl,
+          };
+        }
+      } catch {
+        /* optional */
+      }
+      report.hits = await ddgHits(`"${q}"`, 6);
+    } else if (kind === "handle") {
+      const h = q.replace(/^@/, "");
+      report.hits = await ddgHits(`${h} (instagram OR github OR linkedin OR site:x.com)`, 6);
+    } else {
+      report.hits = await ddgHits(`"${q}" public profile`, 5);
+    }
+    report.hits.unshift({
+      title: "Have I Been Pwned — check this address yourself",
+      url: looksLikeEmail(q) ? `https://haveibeenpwned.com/account/${encodeURIComponent(q)}` : "https://haveibeenpwned.com/",
+      blurb: "OWL does not store passwords. Open HIBP and lock reused logins.",
+    });
+    return { ok: true as const, report };
   });

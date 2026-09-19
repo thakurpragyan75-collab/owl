@@ -12,8 +12,8 @@ export const OWL_FEATURES: OwlFeature[] = [
   { id: "scene-oracle", name: "Scene Oracle", blurb: "Captures a frame and reads clothing, setting, and who appears to be there.", kind: "live", invoke: "what do you see", group: "Presence" },
   { id: "permission-rite", name: "Permission Rite", blurb: "Asks for mic and camera once, then works — no nagging on every command.", kind: "live", invoke: "awaken", group: "Presence" },
 
-  { id: "device-mesh", name: "Device Mesh Theater", blurb: "A session roost of phones, tablets, and laptops OWL can address by name.", kind: "theater", invoke: "open mesh", group: "Mesh" },
-  { id: "screen-unbind", name: "Bluetooth Share", blurb: "Pair a nearby radio and send the last still with Web Share.", kind: "live", invoke: "share this", group: "Mesh" },
+  { id: "device-mesh", name: "Print", blurb: "Enter your email. OWL lists public traces — Gravatar, open-web mentions, Have I Been Pwned — and how to lock them down.", kind: "live", invoke: "open print", group: "Mesh" },
+  { id: "screen-unbind", name: "Bluetooth Share", blurb: "Send the last still with Web Share.", kind: "live", invoke: "share this", group: "Mesh" },
   { id: "chorus-unlock", name: "Song Instant", blurb: "Say a title and OWL opens it on YouTube Music with an in-nest player.", kind: "live", invoke: "play song believer", group: "Mesh" },
   { id: "chorus-play", name: "Chorus Playback", blurb: "Plays your favorite song across every paired device in the mesh.", kind: "theater", invoke: "play my favorite song in all three of the devices", group: "Mesh" },
   { id: "favorite-res", name: "Favorite Resonance", blurb: "A composed night score that belongs to this roost, not a streaming link.", kind: "live", invoke: "play my favorite song", group: "Mesh" },
@@ -70,7 +70,7 @@ export const OWL_FEATURES: OwlFeature[] = [
   { id: "sleep-perch", name: "Sleep Perch", blurb: "Powers the main face down without killing the nest. Click the familiar to wake.", kind: "live", invoke: "go to sleep", group: "Companion" },
   { id: "boot-mythos", name: "First Light", blurb: "A boot rite: eyes open, name appears, you awaken it — not a spinner.", kind: "live", invoke: "awaken", group: "Companion" },
 
-  { id: "arcade", name: "Arcade Reliquary", blurb: "Games that live inside OWL, launched by voice: snake, pong, perch.", kind: "live", invoke: "play a game", group: "Play" },
+  { id: "arcade", name: "Arcade Reliquary", blurb: "Ten games in the roost: snake, pong, perch, bricks, stack, match, sweep, tiles, echo, pulse.", kind: "live", invoke: "play a game", group: "Play" },
   { id: "signal-snake", name: "Signal Snake", blurb: "A night-circuit snake with keyboard and swipe, scored in the roost.", kind: "live", invoke: "play snake", group: "Play" },
   { id: "echo-pong", name: "Echo Pong", blurb: "A two-paddle night match OWL keeps time for.", kind: "live", invoke: "play pong", group: "Play" },
   { id: "perch-catch", name: "Perch Catch", blurb: "Tap to keep the familiar on the line — a one-button night game.", kind: "live", invoke: "play perch", group: "Play" },

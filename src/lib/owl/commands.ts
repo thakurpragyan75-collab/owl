@@ -1,5 +1,5 @@
 import { MODULE_WORDS, resolveSite } from "./sites";
-import type { ModuleId, OwlAction } from "./types";
+import type { GameId, ModuleId, OwlAction } from "./types";
 import { parseFaceCode, styleByName } from "./portrait";
 import { parseSeedText } from "./seed";
 
@@ -145,7 +145,7 @@ const NEWS = [
 ];
 
 const MODULE_PHRASES: Array<[string[], ModuleId]> = [
-  [["open mesh", "device mesh", "devices", "show devices"], "mesh"],
+  [["open mesh", "open print", "digital print", "footprint", "behind my email", "print roost"], "mesh"],
   [["open studio", "open imagine"], "studio"],
   [["open arcade", "play a game", "games"], "arcade"],
   [["open vision", "open camera", "open gaze"], "vision"],
@@ -157,10 +157,17 @@ const MODULE_PHRASES: Array<[string[], ModuleId]> = [
   [["open relics", "open relic", "relics", "rare relics"], "relics"],
 ];
 
-const GAMES: Array<[string[], "snake" | "pong" | "perch"]> = [
+const GAMES: Array<[string[], GameId]> = [
   [["play snake", "snake", "signal snake"], "snake"],
   [["play pong", "pong", "echo pong"], "pong"],
   [["play perch", "perch catch"], "perch"],
+  [["play bricks", "breakout", "bricks"], "bricks"],
+  [["play stack", "tetris", "stack"], "stack"],
+  [["play match", "memory match", "match"], "match"],
+  [["play sweep", "mines", "minesweeper"], "sweep"],
+  [["play tiles", "2048", "tiles"], "tiles"],
+  [["play echo", "simon", "echo"], "echo"],
+  [["play pulse", "reaction", "pulse"], "pulse"],
 ];
 
 function matchAny(text: string, list: string[]) {
@@ -303,8 +310,8 @@ export function parseCommand(raw: string): OwlAction | null {
   if (matchAny(text, ["cover my eye", "cover eye", "cover the camera"])) {
     return { type: "relic", kind: "cover" };
   }
-  if (matchAny(text, ["start a timer", "start hourglass", "pomodoro", "perch timer", "start focus hour", "start a focus hour"])) {
-    const mins = original.match(/(\d+)\s*(?:min|minute)/i);
+  if (matchAny(text, ["start a timer", "start hourglass", "pomodoro", "perch timer", "start focus hour", "start a focus hour"]) || /^timer\s+\d/.test(text)) {
+    const mins = original.match(/(\d+)\s*(?:min|minute)?/i);
     return { type: "relic", kind: "focus", payload: mins?.[1] };
   }
   if (matchAny(text, ["stop timer", "stop hourglass", "end focus hour"])) {
@@ -350,6 +357,22 @@ export function parseCommand(raw: string): OwlAction | null {
     const codeAsk = /(?:write|generate|code|implement)/.test(text);
     if (codeAsk) return { type: "code", prompt: raw };
   }
+
+  const printQ = original.match(
+    /^(?:print|footprint|behind(?: the)? email|check (?:my )?email|digital print|audit)\s+(?:for\s+|of\s+|my\s+)?(.+)/i,
+  );
+  if (printQ?.[1] && printQ[1].length < 80) return { type: "print", query: printQ[1].trim() };
+  if (matchAny(text, ["open print", "digital footprint", "behind the email", "check my email"])) {
+    return { type: "open", module: "mesh" };
+  }
+
+  const fileMake = original.match(
+    /^(?:make|create|write|forge)\s+(?:a\s+)?file(?:\s+(?:named|called|on my (?:mac|computer|desktop))?)?\s+([a-zA-Z0-9._-]{1,64})(?:\s+(?:with|saying|that says|:)\s+([\s\S]+))?$/i,
+  );
+  if (fileMake?.[1]) return { type: "forge_file", name: fileMake[1], body: (fileMake[2] || "").trim() };
+
+  const nav = original.match(/^(?:navigate(?: me)?(?: to)?|directions to|take me to|route to)\s+(.+)/i);
+  if (nav?.[1] && nav[1].length < 80) return { type: "navigate", dest: nav[1].trim() };
 
   if (matchAny(text, VISION)) return { type: "vision" };
 
@@ -520,6 +543,12 @@ export function cinematicLine(action: OwlAction, boss: string): string {
       return "Forging from your seed.";
     case "load_seed":
       return "Loading face seed.";
+    case "print":
+      return "Reading public traces.";
+    case "forge_file":
+      return "Forging the file.";
+    case "navigate":
+      return `Route to ${action.dest}.`;
     case "code":
       return "Writing in the nest.";
     case "website":

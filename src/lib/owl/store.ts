@@ -110,11 +110,7 @@ type OwlState = {
 
 const nowIso = () => new Date().toISOString();
 
-const defaultDevices = (): Device[] => [
-  { id: "primary", name: "Primary", kind: "phone", playing: false, lastPing: nowIso() },
-  { id: "night", name: "Night", kind: "phone", playing: false, lastPing: nowIso() },
-  { id: "field", name: "Field", kind: "phone", playing: false, lastPing: nowIso() },
-];
+const defaultDevices = (): Device[] => [];
 
 export const emptyMemory = (): OwlMemory => ({
   bossName: "Boss",
@@ -298,15 +294,18 @@ export const useOwlStore = create<OwlState>()(
     }),
     {
       name: "owl-roost-v2",
-      version: 4,
+      version: 5,
       migrate: (persisted) => {
         const p = (persisted ?? {}) as Record<string, unknown>;
         const hud = p.hud === "frost" || p.hud === "ember" || p.hud === "night" ? p.hud : "night";
+        const rawDev = Array.isArray(p.devices) ? (p.devices as Device[]) : [];
+        const fake = new Set(["primary", "night", "field"]);
+        const devices = rawDev.filter((d) => d && !fake.has(String(d.id).toLowerCase()) && !fake.has(String(d.name).toLowerCase()));
         return {
           voiceOn: typeof p.voiceOn === "boolean" ? p.voiceOn : true,
           quietHours: typeof p.quietHours === "boolean" ? p.quietHours : false,
           hud,
-          devices: Array.isArray(p.devices) ? (p.devices as ReturnType<typeof defaultDevices>) : defaultDevices(),
+          devices,
           memory: parseNestPayload(p.memory) ?? emptyMemory(),
           clones: typeof p.clones === "number" ? Math.min(3, Math.max(1, p.clones)) : 1,
           trackTitle: typeof p.trackTitle === "string" && p.trackTitle.trim() ? p.trackTitle : "Night Watch",

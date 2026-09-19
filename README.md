@@ -13,9 +13,12 @@ OWL is a Jarvis-style roost in the browser. Speak or type. It reasons in a short
 - **Gaze** — live camera, observe a frame
 - **Nest** — your name, city, song, notes, and people. Edit, delete, import, export. Stays on this device
 - **Studio** — stills and clips from a prompt, in the roost. Clips play in the thread. Upload a photo and restyle it (sketch, Ghibli, noir…). Gaze can mint a copyable **OWL-FACE** sheet. **Mint seed** extracts a 512-d vector + crop (`owl-seed.json` / `.npy`). Say **as me in ghibli** to draw from that seed.
-- **Relics** — ten things a chat box cannot do: drop files, moon in the HUD, hourglass ring, tilt perch, breath ring, cover-eye, roost sigil, color talon, shake tease, idle walk.
-- **Mesh** — pair devices, share a still over the system sheet or Bluetooth
-- **Arcade** — snake, pong, perch
+- **Print** — your public email footprint (Gravatar, open-web mentions, HIBP door) plus lock-down steps. Not a private dossier.
+- **Ember** — when the SuperGrok week is spent, talk/stills/clips stop calling Grok. Relics, Print, arcade, timer, open, and nest still work.
+- **Arcade** — snake, pong, perch, bricks, stack, match, sweep, tiles, echo, pulse
+- **Files** — “make a file named notes.txt with hello” downloads it. OWL cannot write onto your Mac disk.
+- **Navigate** — “navigate to Connaught Place” opens Maps.
+- **Relics** — ten HUD tools that do not need Grok: drop files, moon, hourglass, tilt, breath, cover-eye, sigil, color, shake tease, idle walk.
 - **Open** — “open instagram”, “open yt”, any site by name. OWL launches it.
 - **Music** — “play song believer” finds the track and plays it in the roost
 - **WhatsApp** — “open whatsapp and send Rahul text as hi”. Save a number first: “Rahul’s number is 98…”
@@ -66,7 +69,9 @@ You can also speak it: “call me Boss”, “I live in Delhi”, “my favorite
 
 ## Honest limits
 
-OWL lives in the browser. It cannot unlock a real phone or take over a Mac. WhatsApp is opened with the official click-to-chat link (`wa.me` / WhatsApp Web) — the chat and message are filled in; WhatsApp itself still needs the last Send tap. Mesh pairing and Bluetooth share use what the browser allows (Web Share / Web Bluetooth).
+OWL lives in the browser. It cannot unlock a real phone or write files onto a Mac. WhatsApp is opened with the official click-to-chat link. Print only reads public traces of an address you enter — Gravatar, search hits, a HIBP link — not private mail, phones, or Instagram likes.
+
+ChatGPT, Claude, Qwen, Perplexity, and Higgsfield are not wired: OWL has one xAI key. Switching Grok models does not dodge the weekly SuperGrok pool. Ember is the backup.
 
 ## Privacy
 

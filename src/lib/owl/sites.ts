@@ -26,6 +26,7 @@ export const SITE_ALIASES: Record<string, string> = {
   spotify: "https://open.spotify.com/",
   maps: "https://maps.google.com/",
   "google maps": "https://maps.google.com/",
+  navigation: "https://maps.google.com/",
   amazon: "https://www.amazon.com/",
   wikipedia: "https://en.wikipedia.org/",
   wiki: "https://en.wikipedia.org/",

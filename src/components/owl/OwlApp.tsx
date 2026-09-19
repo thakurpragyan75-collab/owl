@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Camera, Code2, Feather, Gamepad2, Globe, ImageIcon, Inbox, Mic, MicOff, Moon, Paperclip, Send, Smartphone, UserRound, Volume2, VolumeX } from "lucide-react";
-import { owlChat, owlClipPoll, owlClipStart, owlFaceCode, owlFindTrack, owlHear, owlImagine, owlRestyle, owlSee, owlSpeak } from "@/lib/owl/ai";
+import { BookOpen, Camera, Code2, Feather, Fingerprint, Gamepad2, Globe, ImageIcon, Inbox, Mic, MicOff, Moon, Paperclip, Send, UserRound, Volume2, VolumeX } from "lucide-react";
+import { owlChat, owlClipPoll, owlClipStart, owlFaceCode, owlFindTrack, owlHear, owlImagine, owlPrint, owlRestyle, owlSee, owlSpeak } from "@/lib/owl/ai";
 import { cinematicLine, parseCommand, stripWakeWord, looksLikeMath } from "@/lib/owl/commands";
 import { playTrack, stopMusic, TRACKS } from "@/lib/owl/music";
 import { attachVideo, ensureSenses, getSensesStream } from "@/lib/owl/senses";
@@ -14,13 +14,14 @@ import { BootSequence } from "./BootSequence";
 import { batteryPct, chime, downloadHref, enableTilt, moonPhase, readBattery, roostSigil, sampleFrame, skyBrief } from "@/lib/owl/relics";
 import { faceToImaginePrompt, parseFaceCode, PORTRAIT_STYLES, shrinkDataUrl, stillToDataUrl, stylePrompt, type StyleId } from "@/lib/owl/portrait";
 import { downloadSeed, mintSeed, parseSeedText, readNpy512, seedJson, type OwlSeed } from "@/lib/owl/seed";
+import { EMBER_LINE, localMind } from "@/lib/owl/playbook";
 import { MiniCompanion } from "./MiniCompanion";
 import { OwlFace } from "./OwlFace";
 import { PanelBody } from "./Panels";
 import { RelicsSigil } from "./Relics";
 
 const MODULES: { id: ModuleId; label: string; icon: typeof BookOpen }[] = [
-  { id: "mesh", label: "Mesh", icon: Smartphone },
+  { id: "mesh", label: "Print", icon: Fingerprint },
   { id: "studio", label: "Studio", icon: ImageIcon },
   { id: "arcade", label: "Arcade", icon: Gamepad2 },
   { id: "vision", label: "Gaze", icon: Camera },
@@ -135,6 +136,7 @@ export function OwlApp() {
   const permissions = useOwlStore((s) => s.permissions);
 
   const [draft, setDraft] = useState("");
+  const [ember, setEmber] = useState(false);
   const [clock, setClock] = useState("");
   const [sand, setSand] = useState(0);
   const [clipUrl, setClipUrl] = useState<string | null>(null);
@@ -485,6 +487,12 @@ export function OwlApp() {
         case "load_seed":
           setPanel("studio");
           break;
+        case "print":
+          setPanel("mesh");
+          break;
+        case "forge_file":
+        case "navigate":
+          break;
         case "code":
           setPanel("code");
           break;
@@ -533,6 +541,11 @@ export function OwlApp() {
 
   const imagine = useCallback(
     async (prompt: string) => {
+      if (ember) {
+        pushMessage({ role: "owl", text: EMBER_LINE });
+        setStatus("Ember.");
+        return;
+      }
       setThinking(true);
       setStatus("Forging the still.");
       setPanel("studio");
@@ -540,6 +553,7 @@ export function OwlApp() {
       try {
         const res = await owlImagine({ data: { prompt } });
         if (!res.ok) {
+          if (/Week is spent|quota/.test(res.error)) setEmber(true);
           pushMessage({ role: "owl", text: res.error });
           setStatus(res.error);
           return;
@@ -555,11 +569,16 @@ export function OwlApp() {
         setThinking(false);
       }
     },
-    [addImage, pushLog, pushMessage, setPanel, setStatus, setThinking, voiceReply],
+    [addImage, ember, pushLog, pushMessage, setPanel, setStatus, setThinking, voiceReply],
   );
 
   const weaveClip = useCallback(
     async (prompt: string) => {
+      if (ember) {
+        pushMessage({ role: "owl", text: EMBER_LINE });
+        setStatus("Ember.");
+        return;
+      }
       const gen = ++weaveGen.current;
       setThinking(true);
       setStatus("Weaving a clip.");
@@ -577,6 +596,7 @@ export function OwlApp() {
         });
         if (gen !== weaveGen.current) return;
         if (!start.ok) {
+          if (/Week is spent|quota/.test(start.error)) setEmber(true);
           pushMessage({
             role: "owl",
             text: start.error,
@@ -628,7 +648,7 @@ export function OwlApp() {
         if (gen === weaveGen.current) setThinking(false);
       }
     },
-    [pushMessage, setPanel, setStatus, setThinking, voiceReply],
+    [pushMessage, setPanel, setStatus, setThinking, voiceReply, ember],
   );
 
   const grabFrame = useCallback(async () => {
@@ -866,6 +886,19 @@ export function OwlApp() {
 
   const askMind = useCallback(
     async (prompt: string, extras?: { imageUrl?: string; mode?: MindMode }) => {
+      const mem = useOwlStore.getState().memory;
+      const local = extras?.mode && extras.mode !== "talk" ? null : localMind(prompt, mem);
+      if (local) {
+        pushMessage({ role: "owl", text: local.text, verse: local.verse });
+        setStatus("");
+        void voiceReply(local.text, false);
+        return;
+      }
+      if (ember && extras?.mode !== "math" && extras?.mode !== "news" && extras?.mode !== "research") {
+        pushMessage({ role: "owl", text: EMBER_LINE });
+        setStatus("Ember.");
+        return;
+      }
       setThinking(true);
       setStatus(extras?.mode === "math" ? "Working the form." : extras?.mode === "news" ? "Pulling the hour." : "Thinking.");
       try {
@@ -874,7 +907,6 @@ export function OwlApp() {
           .messages.filter((m) => m.role !== "system")
           .slice(-10)
           .map((m) => ({ role: m.role === "owl" ? ("owl" as const) : ("user" as const), text: m.text }));
-        const mem = useOwlStore.getState().memory;
         const res = await owlChat({
           data: {
             bossName: mem.bossName,
@@ -888,6 +920,7 @@ export function OwlApp() {
             favoriteSong: mem.favoriteSong,
           },
         });
+        if (!res.ok && res.ember) setEmber(true);
         const raw = res.ok ? res.text : res.error;
         const { verse: tagged, text } = splitVerse(raw);
         const verse = tagged || (res.ok ? res.verse : undefined);
@@ -898,7 +931,7 @@ export function OwlApp() {
         if (remember?.[1]) addNote(remember[1]);
         pushMessage({
           role: "owl",
-          text,
+          text: res.ok && res.challenge ? `${text}\n\n${res.challenge}` : text,
           verse,
           imageUrl: extras?.imageUrl,
           code: fence && fence.language !== "html" ? fence : undefined,
@@ -910,7 +943,7 @@ export function OwlApp() {
         setThinking(false);
       }
     },
-    [addNote, pushMessage, setLastCode, setLastSite, setStatus, setThinking, voiceReply],
+    [addNote, ember, pushMessage, setLastCode, setLastSite, setStatus, setThinking, voiceReply],
   );
 
   const shareStill = useCallback(
@@ -1060,6 +1093,40 @@ export function OwlApp() {
         if (action.type === "load_seed") {
           const seed = parseSeedText(action.raw);
           if (seed) applySeed(seed);
+          return;
+        }
+        if (action.type === "print") {
+          setPanel("mesh");
+          setThinking(true);
+          try {
+            const res = await owlPrint({ data: { query: action.query } });
+            if (!res.ok) pushMessage({ role: "owl", text: res.error });
+            else {
+              const lines = res.report.hits.slice(0, 6).map((h) => `· ${h.title}`).join("\n");
+              pushMessage({
+                role: "owl",
+                text: `Print of ${res.report.query} (${res.report.kind}).\n${lines}\nOpen Print for the full report and lock-down list.`,
+              });
+            }
+          } finally {
+            setThinking(false);
+          }
+          return;
+        }
+        if (action.type === "forge_file") {
+          const name = action.name.includes(".") ? action.name : `${action.name}.txt`;
+          const body = action.body || `// ${name}\n// Forged in OWL for ${useOwlStore.getState().memory.bossName}\n`;
+          const blob = new Blob([body], { type: "text/plain;charset=utf-8" });
+          const href = URL.createObjectURL(blob);
+          downloadHref(href, name);
+          pushMessage({ role: "owl", text: `File ${name} is ready to download. I cannot write onto your Mac disk from the roost — the browser saves it to Downloads.` });
+          return;
+        }
+        if (action.type === "navigate") {
+          const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(action.dest)}`;
+          launchHref(url);
+          setBrowse(url);
+          pushMessage({ role: "owl", text: `Route to ${action.dest}.` });
           return;
         }
         if (action.type === "code") {
@@ -1480,7 +1547,9 @@ export function OwlApp() {
             {clock}
           </span>
           <span className="hidden rounded-full border border-border px-2 py-1 font-mono text-[0.65rem] tracking-wider text-subtle uppercase sm:inline">
-            {listening ? "ear on" : "ear off"} · {devices.length} paired
+            {listening ? "ear on" : "ear off"}
+            {ember ? " · ember" : ""}
+            {focusUntil ? " · hourglass" : ""}
           </span>
           <IconToggle on={voiceOn} onClick={() => setVoiceOn(!voiceOn)} label="Voice">
             {voiceOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
@@ -1619,7 +1688,7 @@ export function OwlApp() {
             <div className="flex min-h-0 flex-1 flex-col p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="font-display text-xl capitalize">
-                  {panel === "memory" ? "Nest" : panel === "browse" ? "Open" : panel}
+                  {panel === "memory" ? "Nest" : panel === "browse" ? "Open" : panel === "mesh" ? "Print" : panel}
                 </h2>
                 <button type="button" className="min-h-11 px-3 text-sm text-muted" onClick={() => setPanel(null)}>
                   Close

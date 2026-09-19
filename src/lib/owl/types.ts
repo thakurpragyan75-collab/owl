@@ -92,6 +92,9 @@ export type OwlAction =
   | { type: "mint_seed" }
   | { type: "forge_me"; prompt: string }
   | { type: "load_seed"; raw: string }
+  | { type: "print"; query: string }
+  | { type: "forge_file"; name: string; body: string }
+  | { type: "navigate"; dest: string }
   | { type: "code"; prompt: string }
   | { type: "website"; prompt: string }
   | { type: "game"; name?: string }
@@ -125,4 +128,4 @@ export type OwlFeature = {
   group: string;
 };
 
-export type GameId = "snake" | "pong" | "perch";
+export type GameId = "snake" | "pong" | "perch" | "bricks" | "stack" | "match" | "sweep" | "tiles" | "echo" | "pulse";

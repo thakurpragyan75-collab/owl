@@ -2,15 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { useOwlStore } from "@/lib/owl/store";
 import type { GameId } from "@/lib/owl/types";
 import { cn } from "@/lib/utils";
+import { Bricks, Echo, Match, Pulse, Stack, Sweep, Tiles } from "./ArcadeMore";
 
 export function Arcade() {
   const game = useOwlStore((s) => s.game);
   const setGame = useOwlStore((s) => s.setGame);
 
+  const games: GameId[] = ["snake", "pong", "perch", "bricks", "stack", "match", "sweep", "tiles", "echo", "pulse"];
+
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex gap-2">
-        {(["snake", "pong", "perch"] as GameId[]).map((id) => (
+      <div className="flex flex-wrap gap-2">
+        {games.map((id) => (
           <button
             key={id}
             type="button"
@@ -28,8 +31,15 @@ export function Arcade() {
         {game === "snake" && <Snake />}
         {game === "pong" && <Pong />}
         {game === "perch" && <Perch />}
+        {game === "bricks" && <Bricks />}
+        {game === "stack" && <Stack />}
+        {game === "match" && <Match />}
+        {game === "sweep" && <Sweep />}
+        {game === "tiles" && <Tiles />}
+        {game === "echo" && <Echo />}
+        {game === "pulse" && <Pulse />}
         {!game && (
-          <p className="p-6 text-sm text-muted">Say “play snake”, “play pong”, or “play perch” — or pick one.</p>
+          <p className="p-6 text-sm text-muted">Pick a game, or say “play snake”, “play stack”, “play bricks”.</p>
         )}
       </div>
     </div>

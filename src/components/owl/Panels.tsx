@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { PORTRAIT_STYLES, stillToDataUrl, type StyleId } from "@/lib/owl/portrait";
 import { downloadSeed } from "@/lib/owl/seed";
 import { Bluetooth, Music2, Smartphone, Laptop, Watch, Tablet, Pencil, Trash2, Download, Upload, Check } from "lucide-react";
+import { owlPrint } from "@/lib/owl/ai";
+import type { PrintReport } from "@/lib/owl/print";
 import type { DeviceKind } from "@/lib/owl/types";
 
 const KIND_ICON = {
@@ -45,7 +47,7 @@ export function PanelBody({
   onDropFile?: (file: File) => void;
 }) {
   const panel = useOwlStore((s) => s.panel);
-  if (panel === "mesh") return <MeshPanel onShare={onShare} />;
+  if (panel === "mesh") return <PrintPanel />;
   if (panel === "studio")
     return <StudioPanel onImagine={onImagine} onClip={onClip} onRestyle={onRestyle} onMintSeed={onMintSeed} onForgeMe={onForgeMe} />;
   if (panel === "vision") return <VisionPanel onSee={onSee} onMint={onMint} onMintSeed={onMintSeed} />;
@@ -58,6 +60,85 @@ export function PanelBody({
   if (panel === "browse") return <BrowsePanel />;
   if (panel === "relics") return <RelicsPanel onInvoke={onInvoke} onDropFile={onDropFile} />;
   return null;
+}
+
+function PrintPanel() {
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [report, setReport] = useState<PrintReport | null>(null);
+
+  return (
+    <div className="flex h-full flex-col gap-3 overflow-y-auto pr-1">
+      <p className="text-sm text-muted">
+        Print reads <strong className="font-medium text-fg">public</strong> traces of an email or handle you own —
+        Gravatar, open-web mentions, and a door to Have I Been Pwned. Not a private dossier. Not someone else's phone.
+      </p>
+      <form
+        className="flex flex-col gap-2 sm:flex-row"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const query = q.trim();
+          if (!query) return;
+          setBusy(true);
+          setErr("");
+          try {
+            const res = await owlPrint({ data: { query } });
+            if (!res.ok) setErr(res.error);
+            else setReport(res.report);
+          } catch {
+            setErr("Print missed.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="you@mail.com or @yourhandle"
+          className="min-h-11 flex-1 rounded-md border border-border bg-bg px-3 text-sm text-fg outline-none placeholder:text-subtle focus:ring-1 focus:ring-accent"
+        />
+        <button type="submit" disabled={busy} className="min-h-11 rounded-md bg-accent px-4 text-sm font-medium text-accent-fg disabled:opacity-50">
+          {busy ? "Reading…" : "Print"}
+        </button>
+      </form>
+      {err && <p className="text-sm text-warn">{err}</p>}
+      {report && (
+        <div className="flex flex-col gap-3">
+          {report.gravatar && (
+            <div className="flex items-center gap-3 rounded-md border border-border bg-bg-subtle px-3 py-2">
+              {report.gravatar.thumbnail && (
+                <img src={report.gravatar.thumbnail} alt="" className="size-12 rounded-sm bg-bg object-cover" />
+              )}
+              <div className="min-w-0">
+                <p className="text-sm text-fg">{report.gravatar.hasProfile ? report.gravatar.displayName || "Gravatar profile" : "No Gravatar profile"}</p>
+                <p className="font-mono text-[11px] text-muted">{report.gravatar.hash.slice(0, 16)}…</p>
+              </div>
+            </div>
+          )}
+          <ul className="flex flex-col gap-2">
+            {report.hits.map((h) => (
+              <li key={h.url} className="rounded-md border border-border px-3 py-2">
+                <a href={h.url} target="_blank" rel="noreferrer" className="text-sm text-iris underline-offset-2 hover:underline">
+                  {h.title}
+                </a>
+                {h.blurb && <p className="mt-1 text-xs text-muted">{h.blurb}</p>}
+              </li>
+            ))}
+          </ul>
+          <div className="rounded-md border border-border bg-bg-subtle px-3 py-2">
+            <p className="text-sm font-medium text-fg">Lock this down</p>
+            <ul className="mt-1 list-disc pl-4 text-xs text-muted">
+              {report.lockDown.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function MeshPanel({ onShare }: { onShare: (deviceId?: string) => void }) {
