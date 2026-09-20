@@ -65,6 +65,12 @@ def health() -> tuple[int, list[str]]:
         lines.append("ok mlx_lm")
     except ImportError:
         lines.append("WARN mlx-lm missing")
+    try:
+        import llama_cpp  # noqa: F401
+
+        lines.append("ok llama_cpp")
+    except ImportError:
+        lines.append("WARN llama_cpp missing")
     lines.append(f"model id {MLX_MODEL}")
     lines.append(f"workers_running {workers_running()}")
     tlock = FileLock(TRAIN_LOCK_PATH)

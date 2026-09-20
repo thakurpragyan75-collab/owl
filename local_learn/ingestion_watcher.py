@@ -29,23 +29,30 @@ def ingest_path(path: Path, source_url: str | None = None, download_id: int | No
         db.event("error", f"parse {path.name}: {e}")
         return False
     digest = sha256_text(text)
+    src = source_url or str(path)
     doc_id = db.insert_document(
         download_id=download_id,
-        source_url=source_url or str(path),
+        source_url=src,
         content_sha256=digest,
         char_count=len(text),
         file_type=kind,
+        ingest_status="validated",
     )
     if doc_id is None:
         log.info("duplicate content %s", path.name)
         path.unlink(missing_ok=True)
         return True
     try:
+        db.set_ingest_status(doc_id, "validated")
         append_corpus(text)
-        index_document(source_url or str(path), text)
+        db.set_ingest_status(doc_id, "corpus_written")
+        index_document(src, text, doc_hash=digest, canonical_url=src)
+        db.set_ingest_status(doc_id, "indexed")
+        db.set_ingest_status(doc_id, "complete")
     except Exception as e:
-        log.exception("dataset append failed")
-        db.event("error", f"append {path.name}: {e}")
+        log.exception("ingestion incomplete %s", path.name)
+        db.event("error", f"ingest {path.name}: {e}")
+        db.set_ingest_status(doc_id, "failed")
         return False
     path.unlink(missing_ok=True)
     db.event("info", f"ingested {path.name} chars={len(text)}")

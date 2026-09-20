@@ -4,7 +4,9 @@ __pycache__/
 raw_downloads/*
 !raw_downloads/.gitkeep
 my_private_model/**
+!my_private_model/.gitkeep
 logs/*
 state/*
 training_data/*.jsonl
 .pytest_cache/
+*.gguf

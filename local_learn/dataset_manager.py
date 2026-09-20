@@ -10,15 +10,6 @@ from util import atomic_write_text, json_one_line, sha256_text
 
 log = get_logger("dataset")
 
-INSTRUCTION = (
-    "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\n"
-    "Internalize the following source material for later answers. "
-    "Do not invent facts beyond it.\n\n{body}"
-    "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-    "Stored."
-    "<|eot_id|>"
-)
-
 
 def append_corpus(text: str) -> None:
     TRAIN_DIR.mkdir(parents=True, exist_ok=True)
@@ -85,7 +76,7 @@ def rebuild_splits() -> dict:
     test_i = set(order[n_train + n_valid :])
     buckets = {"train": [], "valid": [], "test": []}
     for i, t in enumerate(uniq):
-        rec = json_one_line({"text": INSTRUCTION.format(body=t[:6000])})
+        rec = json_one_line({"text": t[:8000]})
         if i in train_i:
             buckets["train"].append(rec)
         elif i in valid_i:

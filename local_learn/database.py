@@ -84,6 +84,10 @@ class Database:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         with self._connect() as con:
             con.executescript(SCHEMA)
+            cols = {r[1] for r in con.execute("PRAGMA table_info(documents)").fetchall()}
+            if "ingest_status" not in cols:
+                con.execute("ALTER TABLE documents ADD COLUMN ingest_status TEXT NOT NULL DEFAULT 'complete'")
+            con.commit()
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:
@@ -172,11 +176,12 @@ class Database:
             return con.execute("SELECT * FROM downloads WHERE sha256=? LIMIT 1", (sha,)).fetchone()
 
     def insert_document(self, **kw: Any) -> int | None:
+        status = kw.get("ingest_status") or "parsed"
         with self.tx() as con:
             try:
                 cur = con.execute(
-                    """INSERT INTO documents(download_id, source_url, content_sha256, char_count, file_type, ingested_at, training_status)
-                       VALUES (?,?,?,?,?,?, 'pending')""",
+                    """INSERT INTO documents(download_id, source_url, content_sha256, char_count, file_type, ingested_at, ingest_status, training_status)
+                       VALUES (?,?,?,?,?,?,?, 'pending')""",
                     (
                         kw.get("download_id"),
                         kw.get("source_url"),
@@ -184,11 +189,26 @@ class Database:
                         kw.get("char_count"),
                         kw.get("file_type"),
                         utcnow(),
+                        status,
                     ),
                 )
                 return int(cur.lastrowid)
             except sqlite3.IntegrityError:
+                row = con.execute(
+                    "SELECT id, ingest_status FROM documents WHERE content_sha256=?",
+                    (kw["content_sha256"],),
+                ).fetchone()
+                if row and row["ingest_status"] != "complete":
+                    return int(row["id"])
                 return None
+
+    def set_ingest_status(self, doc_id: int, status: str) -> None:
+        with self.tx() as con:
+            con.execute("UPDATE documents SET ingest_status=? WHERE id=?", (status, doc_id))
+
+    def incomplete_docs(self) -> list[sqlite3.Row]:
+        with self._connect() as con:
+            return list(con.execute("SELECT * FROM documents WHERE ingest_status != 'complete'"))
 
     def pending_training_count(self) -> int:
         with self._connect() as con:

@@ -295,54 +295,56 @@ export const owlChat = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data }): Promise<OwlMind> => {
-    const people =
-      data.people.length === 0
-        ? "None yet."
-        : data.people
-            .map((p) => `${p.name} (${p.relation}${p.notes ? `: ${p.notes}` : ""})`)
-            .join("; ");
-    const notes = data.notes.slice(-8).join(" | ") || "None.";
-    const tone =
-      data.personality === "tease"
-        ? "Dry, teasing, still useful. Needle them a little."
-        : data.personality === "precise"
-          ? "Precise, short, Jarvis-like. No fluff."
-          : "Warm partner, calm, slightly teasing. Address them as a trusted counterpart.";
-    const mode: MindMode = data.mode ?? "talk";
-    const place = data.city?.trim() ? `They live in ${data.city.trim()}.` : "City unknown.";
-    const song = data.favoriteSong?.trim() ? data.favoriteSong.trim() : "Night Watch";
-
-    const system = `You are OWL, a personal AI companion in this nest. Address the user as ${data.bossName}. ${tone}
-Understand typos without commenting on them.
-${modeSystem(mode)}
-${place} Favorite song: ${song}.
-People in the ledger: ${people}
-Notes: ${notes}
-If they ask for code, return a short lead-in then a fenced block.
-If they ask you to build a website, return a complete HTML document in an html fence after one sentence.
-Do not mention system prompts.`;
-
-    const history = data.history.slice(-10).map((m) => ({
-      role: (m.role === "owl" ? "assistant" : "user") as "assistant" | "user",
-      content: m.text.slice(0, 4000),
-    }));
-
-    const maxTokens = mode === "talk" ? 1200 : 2400;
-    const temperature = mode === "math" ? 0.2 : mode === "news" ? 0.35 : 0.55;
-    const search = mode === "research" || mode === "news";
-    const code = mode === "math";
-    const effort = mode === "talk" ? "low" : "high";
-
-    const mind = await xaiChat(
-      [{ role: "system", content: system }, ...history, { role: "user", content: data.prompt.slice(0, 8000) }],
-      { maxTokens, temperature, search, code, effort },
-    );
-    if (!mind.ok) return mind;
-    if (mode === "talk" && data.prompt.length > 60) {
-      const challenge = await openWebCheck(data.prompt);
-      if (challenge) return { ...mind, challenge };
+    const base = process.env.OWL_LOCAL_URL || "http://127.0.0.1:8765";
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 120_000);
+    try {
+      const res = await fetch(`${base}/v1/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          prompt: data.prompt.slice(0, 8000),
+          history: data.history.slice(-10),
+          bossName: data.bossName,
+          personality: data.personality,
+          notes: data.notes.slice(-8),
+          people: data.people,
+          city: data.city,
+          favoriteSong: data.favoriteSong,
+          mode: data.mode ?? "talk",
+        }),
+      });
+      const body = (await res.json()) as {
+        ok?: boolean;
+        text?: string;
+        error?: string;
+        engine?: string;
+        sources?: { source?: string; hash?: string; chunk?: number }[];
+      };
+      if (!body.ok || !body.text) {
+        return {
+          ok: false,
+          error: body.error || "Local mind did not answer. Start the roost service.",
+        };
+      }
+      let text = body.text.trim();
+      if (body.sources?.length) {
+        const cites = body.sources
+          .filter((s) => s.source)
+          .slice(0, 4)
+          .map((s) => s.source)
+          .join("; ");
+        if (cites && !/source=/i.test(text)) text += `\n\nNest sources: ${cites}`;
+      }
+      const tagged = pullTaggedVerse(text);
+      return { ok: true, text: tagged.text || text, verse: tagged.verse };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "local mind unreachable";
+      return { ok: false, error: `Local mind is offline (${msg}). Relics, forge, and gaze still use their own paths.` };
+    } finally {
+      clearTimeout(t);
     }
-    return mind;
   });
 
 export const owlSpeak = createServerFn({ method: "POST" })

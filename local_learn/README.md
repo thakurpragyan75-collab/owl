@@ -1,24 +1,27 @@
-# Local Learn
+# Local Learn — OWL's on-machine mind
 
-Private ingestion + retrieval + MLX LoRA on your Mac. **No OpenAI, Anthropic, Groq, Gemini, OpenRouter, hosted embeddings, or telemetry.**
-
-Internet is used only when you enqueue a public URL, or when `pip` / MLX first-time model fetch runs.
-
-This does **not** replace OWL. It is a separate roost for local learning. OWL stays as the companion UI.
-
-## Honest 8 GB limit
-
-`Llama-3.2-1B-Instruct-4bit` + LoRA with `batch_size=1` and `max_seq_length=512` is the ceiling. You cannot “train on the whole universe.” The pipeline stops when RAM or disk is low. Fine-tuning is delayed until **25 new docs** or **8 MB** of corpus **and** the machine is idle.
-
-New knowledge between trains: **SQLite FTS5 RAG** (`python super_grok_control.py ask "…"`).
+OWL's HUD is the web app. This folder is the **brain**: local LLM, RAG, downloads, optional LoRA.
 
 ```
-URL → queue → download (.part then atomic) → raw_downloads/
-    → watchdog → parse/clean → hash/dedupe → SQLite
-    → dataset.jsonl append → delete raw
-    → FTS index (RAG)
-    → optional split → mlx_lm.lora → my_private_model/adapters
+React HUD  →  http://127.0.0.1:8765/v1/chat  →  Local provider (MLX)
+                                              →  RAG (SQLite FTS5)
+                                              →  tools (sandboxed)
 ```
+
+No SuperGrok, xAI, OpenAI, Anthropic, Gemini, Groq, OpenRouter, or hosted embeddings **for conversation**.
+
+## Layers (do not mix them up)
+
+| Layer | What it is | Offline? |
+|---|---|---|
+| **MODEL** | Llama-3.2-1B-Instruct-4bit via MLX (Mac). GGUF llama.cpp if MLX missing | After first weight fetch |
+| **MEMORY** | Nest in the HUD (localStorage) + SQLite pipeline state | Yes |
+| **RAG** | FTS5 chunks of ingested docs | Yes |
+| **FINE-TUNE** | Optional LoRA, never per-file | Yes (compute) |
+| **TOOLS** | list/read/search sandbox, calculate, tiny Python | Yes |
+| **WEB DOWNLOADS** | URLs you enqueue | Needs net for the fetch |
+| **VOICE** | Browser speech synthesis + Web Speech | Yes |
+| **STUDIO** | Imagine stills/clips live in the HUD, not here | Net |
 
 ## Install (Apple Silicon)
 
@@ -26,65 +29,32 @@ URL → queue → download (.part then atomic) → raw_downloads/
 cd local_learn
 chmod +x setup.sh start.sh run_mlx_training.sh scripts/install_launchagent.sh
 ./setup.sh
-```
-
-`setup.sh` creates `.venv`, installs Python deps, tries `mlx` + `mlx-lm` only on `Darwin arm64`, initializes SQLite, runs a health check.
-
-## Start
-
-```bash
 ./start.sh
 ```
 
-Workers: downloader + folder watcher + train policy.
-
-CLI:
+One-command start loads the loopback mind, then the downloader/watcher.
 
 ```bash
 python super_grok_control.py add-url "https://example.com/paper.pdf"
-python super_grok_control.py status
 python super_grok_control.py health
-python super_grok_control.py rebuild
-python super_grok_control.py train
-python super_grok_control.py ask "what did I ingest about LoRA"
-python super_grok_control.py
+python super_grok_control.py ask "what did I save about this project"
+python -m pytest -q
 ```
 
-Interactive menu: A–L workers, **M exit**.
-
-Manual train:
+Offline conversation test:
 
 ```bash
-./run_mlx_training.sh
+MODEL_ENGINE=stub python -m pytest -q tests/test_local_mind.py
 ```
 
-Resume uses the last `ok` adapter under `my_private_model/adapters`.
+That stub is **tests only**. Production `MODEL_ENGINE` is `mlx` (Mac) or `llamacpp` (this Linux nest).
 
-## LaunchAgent (optional)
+## Launch
 
-```bash
-./scripts/install_launchagent.sh
-# launchctl load -w ~/Library/LaunchAgents/local.learn.autonomous.plist
-```
+HUD: the OWL app. Mind: `python owl_service.py` (bound to 127.0.0.1).
 
-`RunAtLoad` is **false** so login does not start a surprise train.
+Health: `python health.py` and `GET http://127.0.0.1:8765/v1/health`
 
-## What stays local vs what hits the network
+## 8 GB limits
 
-| Local | Network |
-|---|---|
-| parse, clean, SQLite, JSONL, FTS, LoRA | your queued URLs |
-| logs, adapters, RAG | first `pip` / MLX weight download |
-
-robots.txt is respected. Private/loopback IPs blocked. Max file 25 MB. No paywall bypass.
-
-## Tests
-
-```bash
-source .venv/bin/activate
-pytest -q
-```
-
-## Layout
-
-See `config.py`. Corpus: `training_data/dataset.jsonl`. Splits: `train.jsonl` / `valid.jsonl` / `test.jsonl` (90/5/5, seed 42).
+Batch 1, seq 512, 4 LoRA layers. Training only after 25 docs or 8 MB **and** idle. Failed trains back off 15 minutes. You cannot train on the whole universe.

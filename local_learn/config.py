@@ -13,12 +13,15 @@ MODEL_DIR = ROOT / "my_private_model"
 LOG_DIR = ROOT / "logs"
 STATE_DIR = ROOT / "state"
 FIXTURE_DIR = ROOT / "tests" / "fixtures"
+SANDBOX_DIR = STATE_DIR / "tool_sandbox"
+RUNS_DIR = MODEL_DIR / "runs"
 
 DB_PATH = STATE_DIR / "pipeline.db"
 LOCK_PATH = STATE_DIR / "workers.lock"
 TRAIN_LOCK_PATH = STATE_DIR / "training.lock"
 PID_PATH = STATE_DIR / "workers.pid"
 RAG_DB = STATE_DIR / "rag.sqlite"
+ACTIVE_ADAPTER = MODEL_DIR / "active.json"
 
 DATASET_JSONL = TRAIN_DIR / "dataset.jsonl"
 TRAIN_JSONL = TRAIN_DIR / "train.jsonl"
@@ -47,9 +50,18 @@ TRAIN_ONLY_IDLE = True
 IDLE_LOAD_THRESHOLD = 0.35
 MIN_FREE_RAM_MB = 1500
 MIN_FREE_DISK_MB = 2048
+TRAIN_FAIL_BACKOFF_SEC = 900
 
-# MLX LoRA — conservative 8 GB
+# Local mind
+MODEL_BACKEND = os.environ.get("MODEL_BACKEND", "local")
+MODEL_ENGINE = os.environ.get("MODEL_ENGINE", "mlx")
 MLX_MODEL = os.environ.get("LOCAL_LEARN_MODEL", "mlx-community/Llama-3.2-1B-Instruct-4bit")
+LLAMA_CPP_MODEL = os.environ.get("OWL_GGUF", str(MODEL_DIR / "Llama-3.2-1B-Instruct-Q4_K_M.gguf"))
+OWL_SERVICE_HOST = os.environ.get("OWL_SERVICE_HOST", "127.0.0.1")
+OWL_SERVICE_PORT = int(os.environ.get("OWL_SERVICE_PORT", "8765"))
+CHAT_MAX_TOKENS = 256
+CHAT_CTX = 2048
+
 LORA_LAYERS = 4
 BATCH_SIZE = 1
 LEARNING_RATE = 1e-5
@@ -62,4 +74,4 @@ NUM_WORKERS_IO = 1
 
 ADAPTER_PATH = MODEL_DIR / "adapters"
 
-DIRS = (RAW_DIR, TRAIN_DIR, MODEL_DIR, LOG_DIR, STATE_DIR, ADAPTER_PATH)
+DIRS = (RAW_DIR, TRAIN_DIR, MODEL_DIR, LOG_DIR, STATE_DIR, ADAPTER_PATH, SANDBOX_DIR, RUNS_DIR)

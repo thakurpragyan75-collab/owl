@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Camera, Code2, Feather, Fingerprint, Gamepad2, Globe, ImageIcon, Inbox, Mic, MicOff, Moon, Paperclip, Send, UserRound, Volume2, VolumeX } from "lucide-react";
-import { owlChat, owlClipPoll, owlClipStart, owlFaceCode, owlFindTrack, owlHear, owlImagine, owlPrint, owlRestyle, owlSee, owlSpeak } from "@/lib/owl/ai";
+import { owlChat, owlClipPoll, owlClipStart, owlFaceCode, owlFindTrack, owlHear, owlImagine, owlPrint, owlRestyle, owlSee } from "@/lib/owl/ai";
 import { cinematicLine, parseCommand, stripWakeWord, looksLikeMath } from "@/lib/owl/commands";
 import { playTrack, stopMusic, TRACKS } from "@/lib/owl/music";
 import { attachVideo, ensureSenses, getSensesStream } from "@/lib/owl/senses";
@@ -215,23 +215,6 @@ export function OwlApp() {
     async (text: string, cinematic: boolean) => {
       if (!voiceOn) return;
       setSpeaking(true);
-      if (cinematic) {
-        speakLocal(text);
-        window.setTimeout(() => setSpeaking(false), Math.min(4200, 600 + text.length * 40));
-        return;
-      }
-      try {
-        const res = await owlSpeak({ data: { text } });
-        if (res.ok) {
-          const audio = new Audio(res.audio);
-          audioRef.current = audio;
-          audio.onended = () => setSpeaking(false);
-          await audio.play();
-          return;
-        }
-      } catch {
-        /* fall through */
-      }
       speakLocal(text);
       window.setTimeout(() => setSpeaking(false), Math.min(5000, 700 + text.length * 35));
     },
@@ -887,18 +870,6 @@ export function OwlApp() {
   const askMind = useCallback(
     async (prompt: string, extras?: { imageUrl?: string; mode?: MindMode }) => {
       const mem = useOwlStore.getState().memory;
-      const local = extras?.mode && extras.mode !== "talk" ? null : localMind(prompt, mem);
-      if (local) {
-        pushMessage({ role: "owl", text: local.text, verse: local.verse });
-        setStatus("");
-        void voiceReply(local.text, false);
-        return;
-      }
-      if (ember && extras?.mode !== "math" && extras?.mode !== "news" && extras?.mode !== "research") {
-        pushMessage({ role: "owl", text: EMBER_LINE });
-        setStatus("Ember.");
-        return;
-      }
       setThinking(true);
       setStatus(extras?.mode === "math" ? "Working the form." : extras?.mode === "news" ? "Pulling the hour." : "Thinking.");
       try {
@@ -920,8 +891,16 @@ export function OwlApp() {
             favoriteSong: mem.favoriteSong,
           },
         });
-        if (!res.ok && res.ember) setEmber(true);
-        const raw = res.ok ? res.text : res.error;
+        let raw = res.ok ? res.text : res.error;
+        if (!res.ok) {
+          const local = extras?.mode && extras.mode !== "talk" ? null : localMind(prompt, mem);
+          if (local) {
+            pushMessage({ role: "owl", text: local.text, verse: local.verse });
+            setStatus("");
+            void voiceReply(local.text, false);
+            return;
+          }
+        }
         const { verse: tagged, text } = splitVerse(raw);
         const verse = tagged || (res.ok ? res.verse : undefined);
         const fence = extractFence(text);
@@ -931,7 +910,7 @@ export function OwlApp() {
         if (remember?.[1]) addNote(remember[1]);
         pushMessage({
           role: "owl",
-          text: res.ok && res.challenge ? `${text}\n\n${res.challenge}` : text,
+          text,
           verse,
           imageUrl: extras?.imageUrl,
           code: fence && fence.language !== "html" ? fence : undefined,
@@ -943,7 +922,7 @@ export function OwlApp() {
         setThinking(false);
       }
     },
-    [addNote, ember, pushMessage, setLastCode, setLastSite, setStatus, setThinking, voiceReply],
+    [addNote, pushMessage, setLastCode, setLastSite, setStatus, setThinking, voiceReply],
   );
 
   const shareStill = useCallback(

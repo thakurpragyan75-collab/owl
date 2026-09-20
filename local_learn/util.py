@@ -164,15 +164,25 @@ def graceful_signals(handler) -> Iterator[None]:
 
 
 def wait_stable(path: Path, seconds: float = 1.5, polls: int = 4) -> bool:
-    last = None
-    for _ in range(polls):
+    """True only if size+mtime stay unchanged for `seconds` and size > 0."""
+    try:
+        st = path.stat()
+    except FileNotFoundError:
+        return False
+    last = (st.st_size, st.st_mtime_ns)
+    if st.st_size <= 0:
+        return False
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        time.sleep(min(0.2, seconds / max(polls, 1)))
         try:
             st = path.stat()
         except FileNotFoundError:
             return False
         cur = (st.st_size, st.st_mtime_ns)
-        if last == cur and st.st_size > 0:
-            return True
-        last = cur
-        time.sleep(seconds / polls)
-    return True
+        if cur != last:
+            last = cur
+            deadline = time.monotonic() + seconds
+            if st.st_size <= 0:
+                return False
+    return last[0] > 0

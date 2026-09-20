@@ -7,5 +7,8 @@ if [[ ! -d .venv ]]; then
 fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
-python health.py >/dev/null 2>&1 || python -c "from health import health; c,l=health(); print('\n'.join(l)); raise SystemExit(c)"
+python -c "from health import health; c,l=health(); print('\n'.join(l)); raise SystemExit(0 if c==0 else c)"
+# Local mind on loopback, then workers.
+python owl_service.py >>logs/owl_service.log 2>&1 &
+echo $! > state/owl_service.pid
 exec python super_grok_control.py start

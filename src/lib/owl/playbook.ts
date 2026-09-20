@@ -76,7 +76,7 @@ export function localMind(
 
   if (/^(who are you|what are you|what is owl)\b/.test(text)) {
     return {
-      text: `I am OWL. Local relics, nest memory, and a Grok mind when the week has credit. When it doesn't, Ember: I still open sites, time you, and keep the nest.`,
+      text: `I am OWL. Local mind on this machine. Nest memory and relics never leave the roost. Forge, weave, and Gaze stills still need the week if you ask for pictures.`,
     };
   }
 
