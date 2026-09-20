@@ -1,0 +1,1 @@
+The roost is quiet after first light. Notes on local learning: keep batch size at one, never train two jobs, and treat every download as untrusted bytes until cleaning succeeds.

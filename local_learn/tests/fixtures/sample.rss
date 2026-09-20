@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<rss version="2.0"><channel>
+<title>Feed</title>
+<item><title>One</title><link>https://example.com/one</link><description>Entry one body long enough to parse as text if needed. This sentence pads the extract so quality checks do not reject a short RSS fallback document.</description></item>
+<item><title>Two</title><link>https://example.com/two</link><description>Second entry also carries enough readable text for the local cleaner to accept the feed as a document when URLs are not enqueued.</description></item>
+</channel></rss>

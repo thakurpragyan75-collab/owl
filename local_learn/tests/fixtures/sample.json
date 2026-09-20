@@ -1,0 +1,1 @@
+{"title": "A note on adapters", "content": "Adapters live under my_private_model and must never be uploaded. They are the only trained weights this roost keeps. Do not copy them to a cloud bucket or a chat window."}

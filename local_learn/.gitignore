@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+raw_downloads/*
+!raw_downloads/.gitkeep
+my_private_model/**
+logs/*
+state/*
+training_data/*.jsonl
+.pytest_cache/
