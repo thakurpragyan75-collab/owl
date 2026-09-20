@@ -128,4 +128,15 @@ export type OwlFeature = {
   group: string;
 };
 
-export type GameId = "snake" | "pong" | "perch" | "bricks" | "stack" | "match" | "sweep" | "tiles" | "echo" | "pulse";
+export type GameId =
+  | "snake"
+  | "pong"
+  | "perch"
+  | "bricks"
+  | "stack"
+  | "match"
+  | "sweep"
+  | "tiles"
+  | "echo"
+  | "pulse"
+  | "flock";
