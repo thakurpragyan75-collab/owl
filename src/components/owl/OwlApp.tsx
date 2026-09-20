@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Camera, Code2, Feather, Fingerprint, Gamepad2, Globe, ImageIcon, Inbox, Mic, MicOff, Moon, Paperclip, Send, UserRound, Volume2, VolumeX } from "lucide-react";
 import { owlChat, owlClipPoll, owlClipStart, owlFaceCode, owlFindTrack, owlHear, owlImagine, owlPrint, owlRestyle, owlSee } from "@/lib/owl/ai";
 import { cinematicLine, parseCommand, stripWakeWord, looksLikeMath } from "@/lib/owl/commands";
+import { runKernelGoal } from "@/lib/owl/kernelClient";
 import { playTrack, stopMusic, TRACKS } from "@/lib/owl/music";
 import { attachVideo, ensureSenses, getSensesStream } from "@/lib/owl/senses";
 import { youtubeMusicSearch } from "@/lib/owl/sites";
@@ -1110,6 +1111,20 @@ export function OwlApp() {
         }
         if (action.type === "code") {
           await askMind(`Write complete code for: ${action.prompt}`);
+          return;
+        }
+        if (action.type === "kernel") {
+          setThinking(true);
+          setStatus("Kernel is on the wire.");
+          try {
+            const line = await runKernelGoal(action.goal, (m) => setStatus(m));
+            pushMessage({ role: "owl", text: line });
+            setStatus("Kernel settled.");
+          } catch {
+            pushMessage({ role: "owl", text: "Kernel slipped. Chat still works." });
+          } finally {
+            setThinking(false);
+          }
           return;
         }
         if (action.type === "website") {

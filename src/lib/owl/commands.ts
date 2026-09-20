@@ -191,6 +191,12 @@ export function parseCommand(raw: string): OwlAction | null {
   const text = norm(original);
   if (!text) return woken.woke ? { type: "wake" } : null;
 
+  const kernelAsk = original.match(/^(?:run\s+)?kernel(?:\s+|:\s*)(.+)/i);
+  if (kernelAsk?.[1]) return { type: "kernel", goal: kernelAsk[1].trim() };
+  if (/^(run kernel|open kernel|kernel status)$/.test(text)) {
+    return { type: "kernel", goal: "Inspect this repository, find failing tests, repair them, verify, report." };
+  }
+
   const nameCall = text.match(/^(?:call me|my name is|i am|im)\s+([a-z][a-z0-9_\- ]{1,24})$/);
   if (nameCall?.[1]) {
     return { type: "set_name", name: nameCall[1].replace(/\b\w/g, (c) => c.toUpperCase()) };

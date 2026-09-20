@@ -96,6 +96,7 @@ export type OwlAction =
   | { type: "forge_file"; name: string; body: string }
   | { type: "navigate"; dest: string }
   | { type: "code"; prompt: string }
+  | { type: "kernel"; goal: string }
   | { type: "website"; prompt: string }
   | { type: "game"; name?: string }
   | { type: "vision" }
@@ -128,15 +129,4 @@ export type OwlFeature = {
   group: string;
 };
 
-export type GameId =
-  | "snake"
-  | "pong"
-  | "perch"
-  | "bricks"
-  | "stack"
-  | "match"
-  | "sweep"
-  | "tiles"
-  | "echo"
-  | "pulse"
-  | "flock";
+export type GameId = "snake" | "pong" | "perch" | "bricks" | "stack" | "match" | "sweep" | "tiles" | "echo" | "pulse";
