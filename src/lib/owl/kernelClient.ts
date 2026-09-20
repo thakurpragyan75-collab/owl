@@ -57,6 +57,10 @@ export async function kernelResult(taskId: string): Promise<KernelJson> {
   return kernelCall("retrieve_result", { task_id: taskId }, 8000);
 }
 
+export async function kernelGetTask(taskId: string): Promise<KernelJson> {
+  return kernelCall("get_task", { task_id: taskId }, 4000);
+}
+
 export async function kernelCancel(taskId: string): Promise<KernelJson> {
   return kernelCall("cancel_task", { task_id: taskId }, 4000);
 }
@@ -76,6 +80,11 @@ function errText(v: unknown): string {
   return JSON.stringify(v);
 }
 
+function taskView(job: KernelJson): KernelJson {
+  const nested = job.task;
+  return nested && typeof nested === "object" ? (nested as KernelJson) : job;
+}
+
 export async function runKernelGoal(source: string, onTick?: (msg: string) => void): Promise<string> {
   const health = await kernelHealth();
   if (!health.ok) {
@@ -85,35 +94,53 @@ export async function runKernelGoal(source: string, onTick?: (msg: string) => vo
   if ("error" in ctx) {
     return `I cannot pick a repository myself. Set OWL_KERNEL_REPO to the project path. (${ctx.error})`;
   }
-  onTick?.(`Got it. I'm inspecting the current project.`);
+  onTick?.("Got it. I'm inspecting the current project.");
   const started = await kernelStart(source, ctx.path);
   if (!started.task_id) return `Kernel refused: ${started.error || "no task id"}`;
   const id = started.task_id;
-  onTick?.(`Repository: ${ctx.label}. Creating an isolated candidate...`);
+  onTick?.(`Repository: ${ctx.label}\nCreating an isolated candidate...`);
+  let sawFail = false;
   for (let i = 0; i < 60; i++) {
     await new Promise((r) => setTimeout(r, 400));
-    const job = await kernelResult(id);
-    const state = String(job.state || "");
-    if (state === "RUNNING" || state === "VERIFYING" || state === "") {
-      onTick?.(`Kernel working (${i + 1}).`);
+    const snap = await kernelGetTask(id);
+    const t = taskView(snap);
+    const state = String(t.state || snap.state || "");
+    const attempt = Number(t.attempt || 0);
+    if (state === "VERIFYING") onTick?.("Found the relevant failure. Running tests...");
+    if (attempt >= 1 && !sawFail) {
+      sawFail = true;
+      onTick?.("First candidate failed. I'm re-evaluating the failure.");
+    }
+    if (state === "RUNNING" || state === "VERIFYING" || state === "" || state === "CANCEL_REQUESTED") {
       continue;
     }
-    if (state === "WAITING_FOR_APPROVAL" || state === "READY_FOR_PROMOTION" || job.ok) {
-      const diff = String(job.diff || "").slice(0, 1200);
-      const changed = Array.isArray(job.changed) ? (job.changed as string[]).join(", ") : "";
-      const tests = job.tests ? "Tests ran on the isolated copy." : "";
-      return [
+    const job = await kernelResult(id);
+    const view = taskView(job);
+    const finalState = String(view.state || job.state || state);
+    if (finalState === "WAITING_FOR_APPROVAL" || finalState === "READY_FOR_PROMOTION") {
+      const tests = (view.tests && typeof view.tests === "object" ? view.tests : null) as { passed?: boolean; summary?: string } | null;
+      const changed = Array.isArray(view.changed_files)
+        ? (view.changed_files as string[]).join(", ")
+        : Array.isArray(job.changed)
+          ? (job.changed as string[]).join(", ")
+          : "";
+      const security = view.security as { passed?: boolean } | undefined;
+      const lines = [
         `Repository: ${ctx.label}`,
-        `Provider: ${String(job.provider || "mock-coder")} (local synthesizer unless a configured model is healthy).`,
-        `Changed in candidate: ${changed || "see diff"}.`,
-        tests,
+        sawFail ? "Second candidate passes." : "Candidate verified.",
+        tests?.summary ? `${tests.summary}.` : "Tests passed on the isolated copy.",
+        security?.passed === false ? "Security checks reported findings." : "Security checks passed.",
+        changed ? `Changed in candidate: ${changed}.` : "",
         "Your original repository is still untouched.",
-        state === "WAITING_FOR_APPROVAL" ? "The verified candidate is ready for approval. Say approve or reject." : `State: ${state}.`,
-        diff,
-      ].join("\n");
+        finalState === "WAITING_FOR_APPROVAL"
+          ? "The verified candidate is ready for approval. Say approve or reject."
+          : "Candidate approved and ready for promotion.",
+        String(view.diff || job.diff || "").slice(0, 800),
+      ].filter(Boolean);
+      return lines.join("\n");
     }
-    if (state === "CANCELLED") return "Kernel task cancelled. Origin was not modified.";
-    return `Kernel did not verify a candidate: ${errText(job.error) || state}`.slice(0, 800);
+    if (finalState === "CANCELLED") return "Kernel task cancelled. Origin was not modified.";
+    return `Kernel did not verify a candidate: ${errText(job.error) || finalState}`.slice(0, 800);
   }
   return `Kernel task ${id} is still running.`;
 }

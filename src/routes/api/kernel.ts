@@ -17,6 +17,7 @@ const OPS: Record<string, { method: string; path: (b: Record<string, unknown>) =
   reject_action: { method: "POST", path: (b) => `/v1/tasks/${String(b.task_id || "")}/reject` },
   inspect_trace: { method: "GET", path: (b) => `/v1/tasks/${String(b.task_id || "")}/trace` },
   retrieve_result: { method: "GET", path: (b) => `/v1/tasks/${String(b.task_id || "")}/result` },
+  get_task: { method: "GET", path: (b) => `/v1/tasks/${String(b.task_id || "")}` },
 };
 
 export const Route = createFileRoute("/api/kernel")({
