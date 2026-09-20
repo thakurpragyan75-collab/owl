@@ -21,9 +21,11 @@ if [ -z "$KERNEL_ROOT" ]; then
   fi
 fi
 if [ -n "${KERNEL_ROOT:-}" ] && ! curl -sf -o /dev/null --max-time 1 http://127.0.0.1:8770/v1/health; then
+  export OWL_KERNEL_REPO="${OWL_KERNEL_REPO:-$ROOT}"
   PYTHONPATH="$KERNEL_ROOT/src" PYTHONUNBUFFERED=1 \
     python3 -m owl_kernel.service --host 127.0.0.1 --port 8770 \
-      --repo "$KERNEL_ROOT/examples/shop_repo" >>/tmp/owl-kernel.log 2>&1 &
+      --allowed-root /workspace --allowed-root /tmp --allowed-root "$ROOT" \
+      >>/tmp/owl-kernel.log 2>&1 &
 fi
 if curl -sf -o /dev/null --max-time 2 http://127.0.0.1:8080/; then
   exit 0

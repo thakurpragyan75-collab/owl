@@ -196,6 +196,8 @@ export function parseCommand(raw: string): OwlAction | null {
   if (/^(run kernel|open kernel|kernel status)$/.test(text)) {
     return { type: "kernel", goal: "Inspect this repository, find failing tests, repair them, verify, report." };
   }
+  if (/^(approve|approve candidate|approve the candidate)$/.test(text)) return { type: "kernel_approve" };
+  if (/^(reject|reject candidate|discard candidate)$/.test(text)) return { type: "kernel_reject" };
 
   const nameCall = text.match(/^(?:call me|my name is|i am|im)\s+([a-z][a-z0-9_\- ]{1,24})$/);
   if (nameCall?.[1]) {

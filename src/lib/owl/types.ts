@@ -97,6 +97,8 @@ export type OwlAction =
   | { type: "navigate"; dest: string }
   | { type: "code"; prompt: string }
   | { type: "kernel"; goal: string }
+  | { type: "kernel_approve" }
+  | { type: "kernel_reject" }
   | { type: "website"; prompt: string }
   | { type: "game"; name?: string }
   | { type: "vision" }
